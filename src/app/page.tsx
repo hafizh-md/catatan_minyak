@@ -21,6 +21,10 @@ import {
   Calendar,
   Filter,
   MoreVertical,
+  ChevronLeft,
+  ChevronRight,
+  CalendarDays,
+  List,
 } from "lucide-react";
 import {
   FuelSettings,
@@ -28,6 +32,7 @@ import {
   CapitalRefill,
   FuelTransaction,
   FuelTypeOption,
+  EnrichedFuelTransaction,
 } from "@/types/fuel";
 import {
   getSettings,
@@ -111,6 +116,13 @@ export default function CatatanMinyakPage() {
   const [filterBbm, setFilterBbm] = useState<string>("ALL");
   const [filterModalStatus, setFilterModalStatus] = useState<string>("ALL");
 
+  // View mode & Kalender states
+  const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
+  const [calendarMonth, setCalendarMonth] = useState(() =>
+    new Date().toISOString().slice(0, 7)
+  );
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState<string | null>(null);
+
   const loadAllData = async () => {
     setLoading(true);
     try {
@@ -186,6 +198,100 @@ export default function CatatanMinyakPage() {
     });
     return Array.from(set).sort().reverse();
   }, [transactions]);
+
+  // Transaksi dikelompokkan per tanggal untuk tampilan Kalender
+  const txByDate = useMemo(() => {
+    const map = new Map<string, EnrichedFuelTransaction[]>();
+    enrichedTransactions.forEach((tx) => {
+      const existing = map.get(tx.tanggal) || [];
+      existing.push(tx);
+      map.set(tx.tanggal, existing);
+    });
+    return map;
+  }, [enrichedTransactions]);
+
+  // Perhitungan Data Grid Kalender Bulanan
+  const calendarData = useMemo(() => {
+    const [year, month] = calendarMonth.split("-").map(Number);
+    const dateObj = new Date(year, month - 1, 1);
+    const monthName = dateObj.toLocaleDateString("id-ID", {
+      month: "long",
+      year: "numeric",
+    });
+
+    const daysInMonth = new Date(year, month, 0).getDate();
+    // 0 = Senin, 6 = Minggu
+    const firstDayIndex = (new Date(year, month - 1, 1).getDay() + 6) % 7;
+
+    const days: Array<{
+      dateStr: string;
+      dayNumber: number;
+      isCurrentMonth: boolean;
+      isToday: boolean;
+      transactions: EnrichedFuelTransaction[];
+      totalSpent: number;
+    }> = [];
+
+    // Kotak kosong sebelum tanggal 1
+    for (let i = 0; i < firstDayIndex; i++) {
+      days.push({
+        dateStr: "",
+        dayNumber: 0,
+        isCurrentMonth: false,
+        isToday: false,
+        transactions: [],
+        totalSpent: 0,
+      });
+    }
+
+    const todayStr = new Date().toISOString().slice(0, 10);
+    let monthTotalSpent = 0;
+    let monthTotalLiter = 0;
+    let monthTxCount = 0;
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dayFormatted = d < 10 ? `0${d}` : `${d}`;
+      const dateStr = `${calendarMonth}-${dayFormatted}`;
+      const dayTxs = txByDate.get(dateStr) || [];
+      const dayTotal = dayTxs.reduce((sum, t) => sum + t.totalBayar, 0);
+      const dayLiter = dayTxs.reduce((sum, t) => sum + t.jumlahLiter, 0);
+
+      monthTotalSpent += dayTotal;
+      monthTotalLiter += dayLiter;
+      monthTxCount += dayTxs.length;
+
+      days.push({
+        dateStr,
+        dayNumber: d,
+        isCurrentMonth: true,
+        isToday: dateStr === todayStr,
+        transactions: dayTxs,
+        totalSpent: dayTotal,
+      });
+    }
+
+    return {
+      monthName,
+      days,
+      monthTotalSpent,
+      monthTotalLiter,
+      monthTxCount,
+    };
+  }, [calendarMonth, txByDate]);
+
+  const handlePrevMonth = () => {
+    const [y, m] = calendarMonth.split("-").map(Number);
+    const prev = new Date(y, m - 2, 1);
+    setCalendarMonth(prev.toISOString().slice(0, 7));
+    setSelectedCalendarDate(null);
+  };
+
+  const handleNextMonth = () => {
+    const [y, m] = calendarMonth.split("-").map(Number);
+    const next = new Date(y, m, 1);
+    setCalendarMonth(next.toISOString().slice(0, 7));
+    setSelectedCalendarDate(null);
+  };
 
   const filteredTransactions = useMemo(() => {
     return enrichedTransactions.filter((t) => {
@@ -920,50 +1026,103 @@ export default function CatatanMinyakPage() {
             </div>
           </div>
 
-          {/* TABEL RIWAYAT NGISI BBM */}
+          {/* TABEL RIWAYAT NGISI BBM & KALENDER */}
           <div className="lg:col-span-7">
             <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
-                <h3 className="text-sm font-bold text-slate-900">
-                  Riwayat Pengisian ({filteredTransactions.length})
-                </h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-bold text-slate-900">
+                    Riwayat
+                  </h3>
+                  {/* Segment Toggle: Daftar vs Kalender */}
+                  <div className="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-0.5 text-xs font-semibold">
+                    <button
+                      type="button"
+                      onClick={() => setViewMode("list")}
+                      className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs transition ${
+                        viewMode === "list"
+                          ? "bg-white text-slate-900 shadow-xs"
+                          : "text-slate-500 hover:text-slate-900"
+                      }`}
+                    >
+                      <List className="h-3 w-3" />
+                      <span>Daftar</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setViewMode("calendar")}
+                      className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs transition ${
+                        viewMode === "calendar"
+                          ? "bg-white text-slate-900 shadow-xs"
+                          : "text-slate-500 hover:text-slate-900"
+                      }`}
+                    >
+                      <CalendarDays className="h-3 w-3" />
+                      <span>Kalender</span>
+                    </button>
+                  </div>
+                </div>
 
-                {/* Filter Simpel */}
-                <div className="no-print flex items-center gap-1.5 text-xs">
-                  {availableMonths.length > 0 && (
+                {/* Filter / Navigasi Kalender */}
+                {viewMode === "list" ? (
+                  <div className="no-print flex items-center gap-1.5 text-xs">
+                    {availableMonths.length > 0 && (
+                      <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1">
+                        <Calendar className="h-3 w-3 text-slate-400" />
+                        <select
+                          value={filterBulan}
+                          onChange={(e) => setFilterBulan(e.target.value)}
+                          className="bg-transparent text-xs text-slate-700 focus:outline-hidden"
+                        >
+                          <option value="ALL">Semua Bulan</option>
+                          {availableMonths.map((m) => (
+                            <option key={m} value={m}>
+                              {m}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
                     <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1">
-                      <Calendar className="h-3 w-3 text-slate-400" />
+                      <Filter className="h-3 w-3 text-slate-400" />
                       <select
-                        value={filterBulan}
-                        onChange={(e) => setFilterBulan(e.target.value)}
+                        value={filterBbm}
+                        onChange={(e) => setFilterBbm(e.target.value)}
                         className="bg-transparent text-xs text-slate-700 focus:outline-hidden"
                       >
-                        <option value="ALL">Semua Bulan</option>
-                        {availableMonths.map((m) => (
-                          <option key={m} value={m}>
-                            {m}
+                        <option value="ALL">Semua BBM</option>
+                        {settings.fuelTypes.map((f) => (
+                          <option key={f.id} value={f.name}>
+                            {f.name}
                           </option>
                         ))}
                       </select>
                     </div>
-                  )}
-
-                  <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1">
-                    <Filter className="h-3 w-3 text-slate-400" />
-                    <select
-                      value={filterBbm}
-                      onChange={(e) => setFilterBbm(e.target.value)}
-                      className="bg-transparent text-xs text-slate-700 focus:outline-hidden"
-                    >
-                      <option value="ALL">Semua BBM</option>
-                      {settings.fuelTypes.map((f) => (
-                        <option key={f.id} value={f.name}>
-                          {f.name}
-                        </option>
-                      ))}
-                    </select>
                   </div>
-                </div>
+                ) : (
+                  <div className="no-print flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={handlePrevMonth}
+                      className="rounded-lg border border-slate-200 bg-white p-1 text-slate-600 hover:bg-slate-50 active:scale-95"
+                      title="Bulan Sebelumnya"
+                    >
+                      <ChevronLeft className="h-3.5 w-3.5" />
+                    </button>
+                    <span className="min-w-28 text-center text-xs font-bold capitalize text-slate-800">
+                      {calendarData.monthName}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleNextMonth}
+                      className="rounded-lg border border-slate-200 bg-white p-1 text-slate-600 hover:bg-slate-50 active:scale-95"
+                      title="Bulan Berikutnya"
+                    >
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
               </div>
 
               {loading ? (
@@ -971,102 +1130,268 @@ export default function CatatanMinyakPage() {
                   <RefreshCw className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                   Memuat data...
                 </div>
-              ) : filteredTransactions.length === 0 ? (
-                <div className="py-10 text-center">
-                  <p className="text-xs font-medium text-slate-500">
-                    Belum ada riwayat pengisian.
-                  </p>
-                </div>
+              ) : viewMode === "list" ? (
+                filteredTransactions.length === 0 ? (
+                  <div className="py-10 text-center">
+                    <p className="text-xs font-medium text-slate-500">
+                      Belum ada riwayat pengisian.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="mt-3 space-y-2.5">
+                    {filteredTransactions.map((tx) => {
+                      const kmPerL =
+                        settings.kmPerLiterMethod === "prev_liter"
+                          ? tx.kmPerLiterFromPrev
+                          : tx.kmPerLiterFromCurrent;
+
+                      return (
+                        <div
+                          key={tx.id}
+                          className="rounded-xl border border-slate-200/80 bg-white p-3 transition hover:border-slate-300"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="text-[11px] font-bold text-slate-500">
+                                  {tx.tanggal}
+                                </span>
+                                <span className="rounded bg-slate-900 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                                  {tx.jenisBbm}
+                                </span>
+                                <span className="text-xs font-bold text-blue-700">
+                                  {formatNumber(tx.jumlahLiter, 2)} L
+                                </span>
+                              </div>
+                              {tx.keterangan && (
+                                <p className="mt-0.5 text-xs text-slate-600">
+                                  {tx.keterangan}
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <div className="text-right">
+                                <p className="text-sm font-extrabold text-slate-900">
+                                  {formatRupiah(tx.totalBayar)}
+                                </p>
+                              </div>
+                              <div className="no-print flex items-center">
+                                <button
+                                  onClick={() => handleEditClick(tx)}
+                                  className="rounded p-1 text-slate-400 hover:text-slate-700"
+                                >
+                                  <Edit3 className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteTx(tx.id)}
+                                  className="rounded p-1 text-slate-400 hover:text-rose-600"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Rincian Modal, Harian & Odo */}
+                          <div className="mt-2 flex flex-wrap items-center justify-between gap-1.5 border-t border-slate-100 pt-2 text-[11px]">
+                            <div className="flex items-center gap-2">
+                              <span className="text-emerald-700">
+                                Modal: {formatRupiah(tx.potongModal)}
+                              </span>
+                              <span className="text-amber-800">
+                                Harian: {formatRupiah(tx.uangHarian)}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-1.5">
+                              {tx.odometerKm > 0 && (
+                                <span className="font-semibold text-slate-600">
+                                  {tx.prevOdometerKm
+                                    ? `${tx.prevOdometerKm} → ${tx.odometerKm} KM`
+                                    : `${tx.odometerKm} KM`}
+                                </span>
+                              )}
+                              {tx.jarakTempuhKm !== null && (
+                                <span className="rounded bg-blue-50 px-1.5 py-0.5 font-bold text-blue-700">
+                                  +{formatNumber(tx.jarakTempuhKm, 0)} km
+                                </span>
+                              )}
+                              {kmPerL !== null && (
+                                <span className="rounded bg-emerald-600 px-1.5 py-0.5 font-bold text-white">
+                                  {formatNumber(kmPerL, 2)} km/L
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )
               ) : (
-                <div className="mt-3 space-y-2.5">
-                  {filteredTransactions.map((tx) => {
-                    const kmPerL =
-                      settings.kmPerLiterMethod === "prev_liter"
-                        ? tx.kmPerLiterFromPrev
-                        : tx.kmPerLiterFromCurrent;
+                /* TAMPILAN KALENDER */
+                <div className="mt-3 space-y-3">
+                  {/* Ringkasan Bulan Ini di Kalender */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-50 p-2.5 text-xs">
+                    <span className="font-semibold text-slate-600">
+                      Total {calendarData.monthName}:
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-slate-900">
+                        {formatRupiah(calendarData.monthTotalSpent)}
+                      </span>
+                      <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[11px] font-bold text-blue-700">
+                        {formatNumber(calendarData.monthTotalLiter, 1)} L
+                      </span>
+                      <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[11px] font-bold text-emerald-700">
+                        {calendarData.monthTxCount}x isi
+                      </span>
+                    </div>
+                  </div>
 
-                    return (
+                  {/* Kalender Grid 7 Hari */}
+                  <div className="grid grid-cols-7 gap-1 text-center">
+                    {["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"].map((dayName) => (
                       <div
-                        key={tx.id}
-                        className="rounded-xl border border-slate-200/80 bg-white p-3 transition hover:border-slate-300"
+                        key={dayName}
+                        className="py-1 text-[11px] font-bold text-slate-400"
                       >
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              <span className="text-[11px] font-bold text-slate-500">
-                                {tx.tanggal}
-                              </span>
-                              <span className="rounded bg-slate-900 px-1.5 py-0.5 text-[10px] font-bold text-white">
-                                {tx.jenisBbm}
-                              </span>
-                              <span className="text-xs font-bold text-blue-700">
-                                {formatNumber(tx.jumlahLiter, 2)} L
-                              </span>
-                            </div>
-                            {tx.keterangan && (
-                              <p className="mt-0.5 text-xs text-slate-600">
-                                {tx.keterangan}
-                              </p>
-                            )}
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            <div className="text-right">
-                              <p className="text-sm font-extrabold text-slate-900">
-                                {formatRupiah(tx.totalBayar)}
-                              </p>
-                            </div>
-                            <div className="no-print flex items-center">
-                              <button
-                                onClick={() => handleEditClick(tx)}
-                                className="rounded p-1 text-slate-400 hover:text-slate-700"
-                              >
-                                <Edit3 className="h-3.5 w-3.5" />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteTx(tx.id)}
-                                className="rounded p-1 text-slate-400 hover:text-rose-600"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Rincian Modal, Harian & Odo */}
-                        <div className="mt-2 flex flex-wrap items-center justify-between gap-1.5 border-t border-slate-100 pt-2 text-[11px]">
-                          <div className="flex items-center gap-2">
-                            <span className="text-emerald-700">
-                              Modal: {formatRupiah(tx.potongModal)}
-                            </span>
-                            <span className="text-amber-800">
-                              Harian: {formatRupiah(tx.uangHarian)}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-1.5">
-                            {tx.odometerKm > 0 && (
-                              <span className="font-semibold text-slate-600">
-                                {tx.prevOdometerKm
-                                  ? `${tx.prevOdometerKm} → ${tx.odometerKm} KM`
-                                  : `${tx.odometerKm} KM`}
-                              </span>
-                            )}
-                            {tx.jarakTempuhKm !== null && (
-                              <span className="rounded bg-blue-50 px-1.5 py-0.5 font-bold text-blue-700">
-                                +{formatNumber(tx.jarakTempuhKm, 0)} km
-                              </span>
-                            )}
-                            {kmPerL !== null && (
-                              <span className="rounded bg-emerald-600 px-1.5 py-0.5 font-bold text-white">
-                                {formatNumber(kmPerL, 2)} km/L
-                              </span>
-                            )}
-                          </div>
-                        </div>
+                        {dayName}
                       </div>
-                    );
-                  })}
+                    ))}
+
+                    {calendarData.days.map((item, index) => {
+                      if (!item.isCurrentMonth) {
+                        return (
+                          <div
+                            key={`empty-${index}`}
+                            className="min-h-12 rounded-lg bg-slate-50/40"
+                          />
+                        );
+                      }
+
+                      const isSelected = selectedCalendarDate === item.dateStr;
+                      const hasTx = item.transactions.length > 0;
+
+                      return (
+                        <button
+                          key={item.dateStr}
+                          type="button"
+                          onClick={() =>
+                            setSelectedCalendarDate(
+                              isSelected ? null : item.dateStr
+                            )
+                          }
+                          className={`flex min-h-12 flex-col items-center justify-between rounded-xl border p-1 text-center transition ${
+                            isSelected
+                              ? "border-emerald-600 bg-emerald-50/70 ring-2 ring-emerald-500"
+                              : hasTx
+                              ? "border-emerald-200 bg-emerald-50/30 hover:border-emerald-400 hover:bg-emerald-50"
+                              : "border-slate-100 bg-white hover:border-slate-200 hover:bg-slate-50"
+                          }`}
+                        >
+                          <span
+                            className={`flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold ${
+                              item.isToday
+                                ? "bg-emerald-600 text-white"
+                                : isSelected
+                                ? "text-emerald-900"
+                                : "text-slate-700"
+                            }`}
+                          >
+                            {item.dayNumber}
+                          </span>
+
+                          {hasTx ? (
+                            <span className="mt-0.5 w-full truncate rounded bg-emerald-600 px-1 py-0.5 text-[9px] font-bold text-white shadow-2xs">
+                              {Math.round(item.totalSpent / 1000)}rb
+                            </span>
+                          ) : (
+                            <span className="h-3.5" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Rincian Transaksi Tanggal yang Diklik di Kalender */}
+                  {selectedCalendarDate && (
+                    <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50/30 p-3">
+                      <div className="flex items-center justify-between border-b border-emerald-100 pb-2">
+                        <span className="text-xs font-bold text-emerald-900">
+                          Catatan Tanggal: {selectedCalendarDate}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedCalendarDate(null)}
+                          className="rounded p-0.5 text-slate-400 hover:text-slate-700"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+
+                      {txByDate.get(selectedCalendarDate)?.length ? (
+                        <div className="mt-2 space-y-2">
+                          {txByDate.get(selectedCalendarDate)!.map((tx) => (
+                            <div
+                              key={tx.id}
+                              className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-2 text-xs"
+                            >
+                              <div>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="rounded bg-slate-900 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                                    {tx.jenisBbm}
+                                  </span>
+                                  <span className="font-bold text-slate-800">
+                                    {formatRupiah(tx.totalBayar)}
+                                  </span>
+                                  <span className="text-[11px] text-blue-700">
+                                    ({formatNumber(tx.jumlahLiter, 2)} L)
+                                  </span>
+                                </div>
+                                {tx.keterangan && (
+                                  <p className="mt-0.5 text-[11px] text-slate-500">
+                                    {tx.keterangan}
+                                  </p>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditClick(tx)}
+                                  className="rounded p-1 text-slate-400 hover:text-slate-700"
+                                >
+                                  <Edit3 className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteTx(tx.id)}
+                                  className="rounded p-1 text-slate-400 hover:text-rose-600"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
+                          <span>Tidak ada catatan di tanggal ini.</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTxTanggal(selectedCalendarDate);
+                              window.scrollTo({ top: 0, behavior: "smooth" });
+                            }}
+                            className="font-bold text-emerald-700 hover:underline"
+                          >
+                            + Catat di Tanggal Ini
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
