@@ -918,12 +918,25 @@ export default function CatatanMinyakPage() {
                   </span>
                 </div>
 
-                {/* 3. Ambil dari Modal (Toggle Simpel) */}
-                <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-2.5">
+                {/* 3. Ambil dari Modal (Toggle Simpel dengan Perbedaan Warna) */}
+                <div
+                  className={`rounded-xl border p-2.5 transition ${
+                    txPakaiModal
+                      ? "border-emerald-200 bg-emerald-50/40"
+                      : "border-amber-200 bg-amber-50/40"
+                  }`}
+                >
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-700">
-                      Pakai Subsidi Modal?
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className={`h-2 w-2 rounded-full ${
+                          txPakaiModal ? "bg-emerald-500" : "bg-amber-500"
+                        }`}
+                      />
+                      <span className="text-xs font-bold text-slate-800">
+                        {txPakaiModal ? "Pakai Modal" : "Tanpa Modal (Uang Harian)"}
+                      </span>
+                    </div>
                     <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 text-xs">
                       <button
                         type="button"
@@ -944,7 +957,7 @@ export default function CatatanMinyakPage() {
                         onClick={() => setTxPakaiModal(false)}
                         className={`rounded-md px-2.5 py-0.5 font-bold transition ${
                           !txPakaiModal
-                            ? "bg-slate-800 text-white"
+                            ? "bg-amber-600 text-white"
                             : "text-slate-500 hover:text-slate-800"
                         }`}
                       >
@@ -957,13 +970,13 @@ export default function CatatanMinyakPage() {
                   <div className="mt-2 flex items-center justify-between rounded-lg bg-white px-2.5 py-1.5 text-xs ring-1 ring-slate-200">
                     <div>
                       <span className="text-[10px] text-slate-500">Modal:</span>{" "}
-                      <strong className="text-emerald-700">
+                      <strong className={txPakaiModal ? "text-emerald-700 font-bold" : "text-slate-400"}>
                         {formatRupiah(formPreview.potongModal)}
                       </strong>
                     </div>
                     <div>
                       <span className="text-[10px] text-slate-500">Harian:</span>{" "}
-                      <strong className="text-amber-700">
+                      <strong className={!txPakaiModal ? "text-amber-700 font-bold" : "text-slate-700"}>
                         {formatRupiah(formPreview.uangHarian)}
                       </strong>
                     </div>
@@ -1125,6 +1138,18 @@ export default function CatatanMinyakPage() {
                 )}
               </div>
 
+              {/* Legenda Warna: Modal vs Tanpa Modal */}
+              <div className="flex items-center gap-3 border-b border-slate-100 py-2 text-[11px]">
+                <span className="inline-flex items-center gap-1 font-semibold text-emerald-800">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                  Pakai Modal
+                </span>
+                <span className="inline-flex items-center gap-1 font-semibold text-amber-800">
+                  <span className="h-2 w-2 rounded-full bg-amber-500" />
+                  Tanpa Modal (Uang Harian)
+                </span>
+              </div>
+
               {loading ? (
                 <div className="flex items-center justify-center py-10 text-xs text-slate-500">
                   <RefreshCw className="mr-1.5 h-3.5 w-3.5 animate-spin" />
@@ -1148,7 +1173,11 @@ export default function CatatanMinyakPage() {
                       return (
                         <div
                           key={tx.id}
-                          className="rounded-xl border border-slate-200/80 bg-white p-3 transition hover:border-slate-300"
+                          className={`rounded-xl border bg-white p-3 transition hover:shadow-xs border-l-4 ${
+                            tx.pakaiModal
+                              ? "border-slate-200/80 border-l-emerald-500"
+                              : "border-slate-200/80 border-l-amber-500"
+                          }`}
                         >
                           <div className="flex items-start justify-between gap-2">
                             <div>
@@ -1162,6 +1191,18 @@ export default function CatatanMinyakPage() {
                                 <span className="text-xs font-bold text-blue-700">
                                   {formatNumber(tx.jumlahLiter, 2)} L
                                 </span>
+                                {/* Badge Status Modal vs Harian */}
+                                {tx.pakaiModal ? (
+                                  <span className="inline-flex items-center gap-1 rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800 ring-1 ring-emerald-200">
+                                    <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                                    Pakai Modal
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-800 ring-1 ring-amber-200">
+                                    <XCircle className="h-3 w-3 text-amber-600" />
+                                    Tanpa Modal
+                                  </span>
+                                )}
                               </div>
                               {tx.keterangan && (
                                 <p className="mt-0.5 text-xs text-slate-600">
@@ -1196,10 +1237,10 @@ export default function CatatanMinyakPage() {
                           {/* Rincian Modal, Harian & Odo */}
                           <div className="mt-2 flex flex-wrap items-center justify-between gap-1.5 border-t border-slate-100 pt-2 text-[11px]">
                             <div className="flex items-center gap-2">
-                              <span className="text-emerald-700">
+                              <span className={tx.pakaiModal ? "font-semibold text-emerald-700" : "text-slate-400"}>
                                 Modal: {formatRupiah(tx.potongModal)}
                               </span>
-                              <span className="text-amber-800">
+                              <span className={!tx.pakaiModal ? "font-semibold text-amber-800" : "text-slate-600"}>
                                 Harian: {formatRupiah(tx.uangHarian)}
                               </span>
                             </div>
@@ -1273,6 +1314,25 @@ export default function CatatanMinyakPage() {
 
                       const isSelected = selectedCalendarDate === item.dateStr;
                       const hasTx = item.transactions.length > 0;
+                      const hasModal = item.transactions.some((t) => t.pakaiModal);
+                      const hasNonModal = item.transactions.some((t) => !t.pakaiModal);
+
+                      const badgeBg =
+                        hasModal && hasNonModal
+                          ? "bg-gradient-to-r from-emerald-600 to-amber-600 text-white"
+                          : hasModal
+                          ? "bg-emerald-600 text-white"
+                          : "bg-amber-600 text-white";
+
+                      const cellBorder = isSelected
+                        ? "border-emerald-600 bg-emerald-50/70 ring-2 ring-emerald-500"
+                        : hasModal && hasNonModal
+                        ? "border-emerald-300 bg-emerald-50/20 hover:border-emerald-400"
+                        : hasModal
+                        ? "border-emerald-200 bg-emerald-50/40 hover:border-emerald-400"
+                        : hasNonModal
+                        ? "border-amber-200 bg-amber-50/40 hover:border-amber-400"
+                        : "border-slate-100 bg-white hover:border-slate-200 hover:bg-slate-50";
 
                       return (
                         <button
@@ -1283,20 +1343,14 @@ export default function CatatanMinyakPage() {
                               isSelected ? null : item.dateStr
                             )
                           }
-                          className={`flex min-h-12 flex-col items-center justify-between rounded-xl border p-1 text-center transition ${
-                            isSelected
-                              ? "border-emerald-600 bg-emerald-50/70 ring-2 ring-emerald-500"
-                              : hasTx
-                              ? "border-emerald-200 bg-emerald-50/30 hover:border-emerald-400 hover:bg-emerald-50"
-                              : "border-slate-100 bg-white hover:border-slate-200 hover:bg-slate-50"
-                          }`}
+                          className={`flex min-h-12 flex-col items-center justify-between rounded-xl border p-1 text-center transition ${cellBorder}`}
                         >
                           <span
                             className={`flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold ${
                               item.isToday
-                                ? "bg-emerald-600 text-white"
+                                ? "bg-slate-900 text-white"
                                 : isSelected
-                                ? "text-emerald-900"
+                                ? "text-emerald-900 font-extrabold"
                                 : "text-slate-700"
                             }`}
                           >
@@ -1304,7 +1358,16 @@ export default function CatatanMinyakPage() {
                           </span>
 
                           {hasTx ? (
-                            <span className="mt-0.5 w-full truncate rounded bg-emerald-600 px-1 py-0.5 text-[9px] font-bold text-white shadow-2xs">
+                            <span
+                              className={`mt-0.5 w-full truncate rounded px-1 py-0.5 text-[9px] font-bold shadow-2xs ${badgeBg}`}
+                              title={
+                                hasModal && hasNonModal
+                                  ? "Campuran (Modal & Uang Harian)"
+                                  : hasModal
+                                  ? "Pakai Modal"
+                                  : "Tanpa Modal (Uang Harian)"
+                              }
+                            >
                               {Math.round(item.totalSpent / 1000)}rb
                             </span>
                           ) : (
@@ -1317,9 +1380,9 @@ export default function CatatanMinyakPage() {
 
                   {/* Rincian Transaksi Tanggal yang Diklik di Kalender */}
                   {selectedCalendarDate && (
-                    <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50/30 p-3">
-                      <div className="flex items-center justify-between border-b border-emerald-100 pb-2">
-                        <span className="text-xs font-bold text-emerald-900">
+                    <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/50 p-3">
+                      <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                        <span className="text-xs font-bold text-slate-900">
                           Catatan Tanggal: {selectedCalendarDate}
                         </span>
                         <button
@@ -1336,10 +1399,14 @@ export default function CatatanMinyakPage() {
                           {txByDate.get(selectedCalendarDate)!.map((tx) => (
                             <div
                               key={tx.id}
-                              className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-2 text-xs"
+                              className={`flex items-center justify-between rounded-lg border bg-white p-2 text-xs border-l-4 ${
+                                tx.pakaiModal
+                                  ? "border-slate-200 border-l-emerald-500"
+                                  : "border-slate-200 border-l-amber-500"
+                              }`}
                             >
                               <div>
-                                <div className="flex items-center gap-1.5">
+                                <div className="flex flex-wrap items-center gap-1.5">
                                   <span className="rounded bg-slate-900 px-1.5 py-0.5 text-[10px] font-bold text-white">
                                     {tx.jenisBbm}
                                   </span>
@@ -1349,6 +1416,15 @@ export default function CatatanMinyakPage() {
                                   <span className="text-[11px] text-blue-700">
                                     ({formatNumber(tx.jumlahLiter, 2)} L)
                                   </span>
+                                  {tx.pakaiModal ? (
+                                    <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800 ring-1 ring-emerald-200">
+                                      Modal: {formatRupiah(tx.potongModal)}
+                                    </span>
+                                  ) : (
+                                    <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-800 ring-1 ring-amber-200">
+                                      Full Harian
+                                    </span>
+                                  )}
                                 </div>
                                 {tx.keterangan && (
                                   <p className="mt-0.5 text-[11px] text-slate-500">
