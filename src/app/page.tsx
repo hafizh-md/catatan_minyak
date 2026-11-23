@@ -477,73 +477,67 @@ export default function CatatanMinyakPage() {
   return (
     <div className="min-h-screen bg-slate-50 pb-16 text-slate-900">
       {/* ===================================================== */}
-      {/* NAVBAR SIMPEL & RESPONSIF                             */}
+      {/* NAVBAR SIMPEL & RESPONSIF (ICON-FIRST DI HP)          */}
       {/* ===================================================== */}
       <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/95 backdrop-blur-md">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-2.5 sm:py-3">
+        <div className="mx-auto flex max-w-5xl items-center justify-between px-3 py-2 sm:px-4 sm:py-2.5">
           {/* Logo & Judul */}
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-xs">
-              <Fuel className="h-5 w-5" />
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-xs">
+              <Fuel className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-base font-bold tracking-tight text-slate-900">
-                  Catatan Minyak
-                </h1>
-                {/* Status Dot Indikator Cloud */}
+            <div className="flex items-center gap-1.5">
+              <h1 className="text-sm sm:text-base font-bold tracking-tight text-slate-900">
+                Catatan Minyak
+              </h1>
+              {/* Status Dot Indikator Cloud */}
+              <span
+                title={
+                  connState === "connected"
+                    ? "Cloud Aktif"
+                    : "Penyimpanan Lokal"
+                }
+                className="inline-flex items-center"
+              >
                 <span
-                  title={
+                  className={`h-2 w-2 rounded-full ${
                     connState === "connected"
-                      ? "Cloud Aktif"
-                      : "Penyimpanan Lokal"
-                  }
-                  className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                    connState === "connected"
-                      ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-300"
-                      : "bg-amber-50 text-amber-800 ring-1 ring-amber-300"
+                      ? "bg-emerald-500 animate-pulse ring-2 ring-emerald-200"
+                      : "bg-amber-500 ring-2 ring-amber-200"
                   }`}
-                >
-                  <span
-                    className={`h-1.5 w-1.5 rounded-full ${
-                      connState === "connected"
-                        ? "bg-emerald-500 animate-pulse"
-                        : "bg-amber-500"
-                    }`}
-                  />
-                  {connState === "connected" ? "Cloud" : "Lokal"}
-                </span>
-              </div>
+                />
+              </span>
             </div>
           </div>
 
-          {/* Action Buttons Navbar */}
-          <div className="no-print flex items-center gap-1.5 sm:gap-2">
+          {/* Action Buttons Navbar (Icon-Only di Layar HP) */}
+          <div className="no-print flex items-center gap-1.5">
             {/* Tombol Refill Modal Utama */}
             <button
               onClick={() => setShowRefillModal(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-xs transition hover:bg-emerald-700 active:scale-95"
+              className="inline-flex h-8 w-8 sm:h-auto sm:w-auto items-center justify-center sm:gap-1.5 rounded-lg bg-emerald-600 text-white shadow-xs transition hover:bg-emerald-700 active:scale-95 sm:px-2.5 sm:py-1.5 text-xs font-semibold"
+              title="Refill Modal Minyak"
             >
-              <Wallet className="h-3.5 w-3.5" />
-              <span>+ Refill</span>
+              <Wallet className="h-4 w-4" />
+              <span className="hidden sm:inline">+ Refill</span>
             </button>
 
             {/* Tombol Pengaturan */}
             <button
               onClick={() => setShowSettingsModal(true)}
-              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 shadow-xs hover:bg-slate-50 active:scale-95"
+              className="inline-flex h-8 w-8 sm:h-auto sm:w-auto items-center justify-center sm:gap-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 shadow-xs hover:bg-slate-50 active:scale-95 sm:px-2.5 sm:py-1.5 text-xs font-medium"
               title="Pengaturan BBM & Jatah"
             >
-              <Settings className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Pengaturan</span>
+              <Settings className="h-4 w-4" />
+              <span className="hidden sm:inline">Setting</span>
             </button>
 
             {/* Tombol Export / Print Dropdown Menu */}
             <div className="relative">
               <button
                 onClick={() => setShowNavMenu(!showNavMenu)}
-                className="inline-flex items-center rounded-lg border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-slate-50"
-                title="Menu Lainnya"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 active:scale-95"
+                title="Menu Lainnya (Export / Print)"
               >
                 <MoreVertical className="h-4 w-4" />
               </button>
