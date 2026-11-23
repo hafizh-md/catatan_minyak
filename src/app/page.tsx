@@ -483,8 +483,12 @@ export default function CatatanMinyakPage() {
         <div className="mx-auto flex max-w-5xl items-center justify-between px-3 py-2 sm:px-4 sm:py-2.5">
           {/* Logo & Judul */}
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-xs">
-              <Fuel className="h-4 w-4 sm:h-5 sm:w-5" />
+            <div className="relative flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-xs">
+              <img
+                src="/logo.jpg"
+                alt="Logo Catatan Minyak"
+                className="h-full w-full object-cover p-0.5"
+              />
             </div>
             <div className="flex items-center gap-1.5">
               <h1 className="text-sm sm:text-base font-bold tracking-tight text-slate-900">

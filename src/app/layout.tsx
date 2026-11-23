@@ -5,6 +5,10 @@ export const metadata: Metadata = {
   title: "Catatan Minyak & BBM | Manajemen Modal & Konsumsi KM/L",
   description:
     "Aplikasi pencatatan modal minyak, pembagian jatah sekali isi, uang harian, dan perhitungan rata-rata konsumsi BBM (km/L).",
+  icons: {
+    icon: "/logo.jpg",
+    apple: "/logo.jpg",
+  },
 };
 
 export default function RootLayout({
