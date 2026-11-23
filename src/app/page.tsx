@@ -1273,20 +1273,38 @@ export default function CatatanMinyakPage() {
               ) : (
                 /* TAMPILAN KALENDER */
                 <div className="mt-3 space-y-3">
-                  {/* Ringkasan Bulan Ini di Kalender */}
-                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-50 p-2.5 text-xs">
-                    <span className="font-semibold text-slate-600">
-                      Total {calendarData.monthName}:
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-slate-900">
-                        {formatRupiah(calendarData.monthTotalSpent)}
+                  {/* Legenda Warna & Ringkasan Kalender */}
+                  <div className="space-y-2 rounded-xl bg-slate-50 p-2.5 text-xs">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 pb-2">
+                      <span className="font-semibold text-slate-600">
+                        Total {calendarData.monthName}:
                       </span>
-                      <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[11px] font-bold text-blue-700">
-                        {formatNumber(calendarData.monthTotalLiter, 1)} L
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-slate-900">
+                          {formatRupiah(calendarData.monthTotalSpent)}
+                        </span>
+                        <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[11px] font-bold text-blue-700">
+                          {formatNumber(calendarData.monthTotalLiter, 1)} L
+                        </span>
+                        <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[11px] font-bold text-emerald-700">
+                          {calendarData.monthTxCount}x isi
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Keterangan Warna Kalender */}
+                    <div className="flex flex-wrap items-center gap-3 pt-0.5">
+                      <span className="inline-flex items-center gap-1.5 font-bold text-emerald-800">
+                        <span className="flex h-3.5 w-3.5 items-center justify-center rounded bg-emerald-600 text-[9px] font-black text-white">
+                          M
+                        </span>
+                        <span>Badge Hijau (M): Pakai Modal</span>
                       </span>
-                      <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[11px] font-bold text-emerald-700">
-                        {calendarData.monthTxCount}x isi
+                      <span className="inline-flex items-center gap-1.5 font-bold text-amber-900">
+                        <span className="flex h-3.5 w-3.5 items-center justify-center rounded bg-amber-500 text-[9px] font-black text-white">
+                          H
+                        </span>
+                        <span>Badge Oranye (H): Tanpa Modal (Uang Harian)</span>
                       </span>
                     </div>
                   </div>
@@ -1307,7 +1325,7 @@ export default function CatatanMinyakPage() {
                         return (
                           <div
                             key={`empty-${index}`}
-                            className="min-h-12 rounded-lg bg-slate-50/40"
+                            className="min-h-14 rounded-lg bg-slate-50/40"
                           />
                         );
                       }
@@ -1317,21 +1335,14 @@ export default function CatatanMinyakPage() {
                       const hasModal = item.transactions.some((t) => t.pakaiModal);
                       const hasNonModal = item.transactions.some((t) => !t.pakaiModal);
 
-                      const badgeBg =
-                        hasModal && hasNonModal
-                          ? "bg-gradient-to-r from-emerald-600 to-amber-600 text-white"
-                          : hasModal
-                          ? "bg-emerald-600 text-white"
-                          : "bg-amber-600 text-white";
-
                       const cellBorder = isSelected
                         ? "border-emerald-600 bg-emerald-50/70 ring-2 ring-emerald-500"
                         : hasModal && hasNonModal
-                        ? "border-emerald-300 bg-emerald-50/20 hover:border-emerald-400"
+                        ? "border-slate-300 bg-gradient-to-br from-emerald-50/60 to-amber-50/60 hover:border-slate-400"
                         : hasModal
-                        ? "border-emerald-200 bg-emerald-50/40 hover:border-emerald-400"
+                        ? "border-emerald-300 bg-emerald-50/50 hover:border-emerald-400"
                         : hasNonModal
-                        ? "border-amber-200 bg-amber-50/40 hover:border-amber-400"
+                        ? "border-amber-300 bg-amber-50/50 hover:border-amber-400"
                         : "border-slate-100 bg-white hover:border-slate-200 hover:bg-slate-50";
 
                       return (
@@ -1343,7 +1354,7 @@ export default function CatatanMinyakPage() {
                               isSelected ? null : item.dateStr
                             )
                           }
-                          className={`flex min-h-12 flex-col items-center justify-between rounded-xl border p-1 text-center transition ${cellBorder}`}
+                          className={`flex min-h-[58px] sm:min-h-[66px] flex-col items-center justify-between rounded-xl border p-1 text-center transition ${cellBorder}`}
                         >
                           <span
                             className={`flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold ${
@@ -1358,18 +1369,24 @@ export default function CatatanMinyakPage() {
                           </span>
 
                           {hasTx ? (
-                            <span
-                              className={`mt-0.5 w-full truncate rounded px-1 py-0.5 text-[9px] font-bold shadow-2xs ${badgeBg}`}
-                              title={
-                                hasModal && hasNonModal
-                                  ? "Campuran (Modal & Uang Harian)"
-                                  : hasModal
-                                  ? "Pakai Modal"
-                                  : "Tanpa Modal (Uang Harian)"
-                              }
-                            >
-                              {Math.round(item.totalSpent / 1000)}rb
-                            </span>
+                            <div className="mt-0.5 flex w-full flex-col gap-0.5">
+                              {item.transactions.map((tx) => (
+                                <span
+                                  key={tx.id}
+                                  className={`w-full truncate rounded px-1 py-0.5 text-[9px] font-black shadow-2xs ${
+                                    tx.pakaiModal
+                                      ? "bg-emerald-600 text-white"
+                                      : "bg-amber-500 text-white"
+                                  }`}
+                                  title={`${tx.jenisBbm}: ${formatRupiah(tx.totalBayar)} (${tx.pakaiModal ? "Pakai Modal" : "Tanpa Modal"})`}
+                                >
+                                  {Math.round(tx.totalBayar / 1000)}k{" "}
+                                  <span className="opacity-90">
+                                    {tx.pakaiModal ? "M" : "H"}
+                                  </span>
+                                </span>
+                              ))}
+                            </div>
                           ) : (
                             <span className="h-3.5" />
                           )}
