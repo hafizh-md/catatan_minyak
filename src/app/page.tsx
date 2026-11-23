@@ -282,6 +282,10 @@ export default function CatatanMinyakPage() {
 
     const prevTx = prevTxsWithSmallerKm[0] || null;
     const selisihKm = prevTx && inputKm > 0 ? inputKm - prevTx.odometerKm : null;
+    const estKmPerL =
+      selisihKm && prevTx && prevTx.jumlahLiter > 0
+        ? Number((selisihKm / prevTx.jumlahLiter).toFixed(2))
+        : null;
 
     return {
       bayar,
@@ -291,6 +295,7 @@ export default function CatatanMinyakPage() {
       uangHarian,
       prevTx,
       selisihKm,
+      estKmPerL,
     };
   }, [
     txTotalBayar,
@@ -650,7 +655,7 @@ export default function CatatanMinyakPage() {
                 {stats.avgKmPerLiter !== null ? (
                   <div className="flex items-baseline gap-1">
                     <span className="text-2xl font-extrabold text-slate-900 sm:text-3xl">
-                      {formatNumber(stats.avgKmPerLiter, 1)}
+                      {formatNumber(stats.avgKmPerLiter, 2)}
                     </span>
                     <span className="text-xs font-bold text-blue-600">km/L</span>
                   </div>
@@ -880,9 +885,13 @@ export default function CatatanMinyakPage() {
                   />
 
                   {formPreview.selisihKm !== null && (
-                    <div className="mt-1.5 flex items-center justify-between rounded-lg bg-blue-50 px-2 py-1 text-[11px] font-medium text-blue-800">
-                      <span>Jarak tempuh:</span>
-                      <strong className="font-bold">+{formatNumber(formPreview.selisihKm, 0)} km</strong>
+                    <div className="mt-1.5 flex items-center justify-between rounded-lg bg-blue-50 px-2.5 py-1 text-xs text-blue-900">
+                      <span>Jarak: +{formatNumber(formPreview.selisihKm, 0)} km</span>
+                      {formPreview.estKmPerL !== null && (
+                        <span className="rounded bg-blue-600 px-1.5 py-0.5 text-[11px] font-bold text-white">
+                          ≈ {formatNumber(formPreview.estKmPerL, 2)} km/L
+                        </span>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1038,7 +1047,9 @@ export default function CatatanMinyakPage() {
                           <div className="flex items-center gap-1.5">
                             {tx.odometerKm > 0 && (
                               <span className="font-semibold text-slate-600">
-                                {tx.odometerKm} KM
+                                {tx.prevOdometerKm
+                                  ? `${tx.prevOdometerKm} → ${tx.odometerKm} KM`
+                                  : `${tx.odometerKm} KM`}
                               </span>
                             )}
                             {tx.jarakTempuhKm !== null && (
@@ -1048,7 +1059,7 @@ export default function CatatanMinyakPage() {
                             )}
                             {kmPerL !== null && (
                               <span className="rounded bg-emerald-600 px-1.5 py-0.5 font-bold text-white">
-                                {formatNumber(kmPerL, 1)} km/L
+                                {formatNumber(kmPerL, 2)} km/L
                               </span>
                             )}
                           </div>
