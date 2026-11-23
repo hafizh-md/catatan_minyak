@@ -16,13 +16,11 @@ import {
   TrendingUp,
   ArrowRight,
   RefreshCw,
-  Cloud,
-  HardDrive,
   Plus,
   X,
-  Info,
   Calendar,
   Filter,
+  MoreVertical,
 } from "lucide-react";
 import {
   FuelSettings,
@@ -71,6 +69,7 @@ export default function CatatanMinyakPage() {
   const [settings, setSettings] = useState<FuelSettings>(DEFAULT_SETTINGS);
   const [refills, setRefills] = useState<CapitalRefill[]>([]);
   const [transactions, setTransactions] = useState<FuelTransaction[]>([]);
+  const [showNavMenu, setShowNavMenu] = useState(false);
 
   // Modal states
   const [showRefillModal, setShowRefillModal] = useState(false);
@@ -81,9 +80,7 @@ export default function CatatanMinyakPage() {
     new Date().toISOString().slice(0, 10)
   );
   const [refillNominal, setRefillNominal] = useState<string>("1000000");
-  const [refillKeterangan, setRefillKeterangan] = useState<string>(
-    "Refill Modal Minyak"
-  );
+  const [refillKeterangan, setRefillKeterangan] = useState<string>("Refill Modal");
 
   // Form Settings state
   const [editSubsidy, setEditSubsidy] = useState<string>("40000");
@@ -127,7 +124,6 @@ export default function CatatanMinyakPage() {
       setTransactions(loadedTx);
       setConnState(getFirestoreConnectionState());
 
-      // Sync default form values with settings
       setEditSubsidy(String(loadedSettings.subsidyPerFill));
       setEditFuelTypes(loadedSettings.fuelTypes);
       setEditKmMethod(loadedSettings.kmPerLiterMethod);
@@ -147,13 +143,11 @@ export default function CatatanMinyakPage() {
     loadAllData();
   }, []);
 
-  // Enrich transactions with KM & km/L calculations
   const enrichedTransactions = useMemo(
     () => enrichTransactionsWithKmStats(transactions),
     [transactions]
   );
 
-  // Perhitungan Kantong Modal Minyak (Keseluruhan)
   const capitalSummary = useMemo(() => {
     const totalModalMasuk = refills.reduce((acc, r) => acc + r.nominal, 0);
     const totalModalTerpakai = transactions.reduce(
@@ -183,7 +177,6 @@ export default function CatatanMinyakPage() {
     };
   }, [refills, transactions, settings.subsidyPerFill]);
 
-  // Daftar bulan yang tersedia untuk filter
   const availableMonths = useMemo(() => {
     const set = new Set<string>();
     transactions.forEach((t) => {
@@ -194,7 +187,6 @@ export default function CatatanMinyakPage() {
     return Array.from(set).sort().reverse();
   }, [transactions]);
 
-  // Transaksi setelah difilter
   const filteredTransactions = useMemo(() => {
     return enrichedTransactions.filter((t) => {
       if (filterBulan !== "ALL" && !t.tanggal.startsWith(filterBulan)) {
@@ -213,7 +205,6 @@ export default function CatatanMinyakPage() {
     });
   }, [enrichedTransactions, filterBulan, filterBbm, filterModalStatus]);
 
-  // Statistik dari transaksi yang difilter + KM/L keseluruhan
   const stats = useMemo(() => {
     const totalPengeluaran = filteredTransactions.reduce(
       (sum, t) => sum + t.totalBayar,
@@ -232,7 +223,6 @@ export default function CatatanMinyakPage() {
       0
     );
 
-    // Hitung rata-rata km/L dari baris yang punya jarakTempuhKm valid
     const txWithDistance = filteredTransactions.filter(
       (t) => t.jarakTempuhKm !== null && t.jarakTempuhKm > 0
     );
@@ -255,22 +245,6 @@ export default function CatatanMinyakPage() {
           validKmPerLiterList.length
         : null;
 
-    // Juga hitung alternatif metode satunya sebagai perbandingan
-    const altKmPerLiterList = txWithDistance
-      .map((t) =>
-        settings.kmPerLiterMethod === "prev_liter"
-          ? t.kmPerLiterFromCurrent
-          : t.kmPerLiterFromPrev
-      )
-      .filter((v): v is number => v !== null && v > 0);
-
-    const altAvgKmPerLiter =
-      altKmPerLiterList.length > 0
-        ? altKmPerLiterList.reduce((a, b) => a + b, 0) /
-          altKmPerLiterList.length
-        : null;
-
-    // Cari odometer tertinggi saat ini
     const maxOdometer =
       transactions.length > 0
         ? Math.max(...transactions.map((t) => t.odometerKm || 0))
@@ -283,13 +257,10 @@ export default function CatatanMinyakPage() {
       totalLiter,
       totalJarakKm,
       avgKmPerLiter,
-      altAvgKmPerLiter,
       maxOdometer,
-      tripCount: txWithDistance.length,
     };
   }, [filteredTransactions, transactions, settings.kmPerLiterMethod]);
 
-  // Kalkulasi real-time di dalam Form Input BBM
   const formPreview = useMemo(() => {
     const bayar = Number(txTotalBayar) || 0;
     const harga = Number(txHargaPerLiter) || 10000;
@@ -298,13 +269,10 @@ export default function CatatanMinyakPage() {
     const rawPotong = txPakaiModal
       ? Number(txCustomPotongModal) || settings.subsidyPerFill
       : 0;
-    // Batasi potongan modal agar tidak melebihi total bayar
     const potongModal = txPakaiModal ? Math.min(bayar, rawPotong) : 0;
     const uangHarian = Math.max(0, bayar - potongModal);
 
-    // Simulasi KM jika user mengetik KM baru
     const inputKm = Number(txOdometerKm) || 0;
-    // Cari transaksi terakhir sebelum transaksi ini
     const otherTxs = editingTxId
       ? transactions.filter((t) => t.id !== editingTxId)
       : transactions;
@@ -314,12 +282,6 @@ export default function CatatanMinyakPage() {
 
     const prevTx = prevTxsWithSmallerKm[0] || null;
     const selisihKm = prevTx && inputKm > 0 ? inputKm - prevTx.odometerKm : null;
-    const estKmPerLPrev =
-      selisihKm && prevTx && prevTx.jumlahLiter > 0
-        ? Number((selisihKm / prevTx.jumlahLiter).toFixed(2))
-        : null;
-    const estKmPerLCurr =
-      selisihKm && liter > 0 ? Number((selisihKm / liter).toFixed(2)) : null;
 
     return {
       bayar,
@@ -329,8 +291,6 @@ export default function CatatanMinyakPage() {
       uangHarian,
       prevTx,
       selisihKm,
-      estKmPerLPrev,
-      estKmPerLCurr,
     };
   }, [
     txTotalBayar,
@@ -343,18 +303,16 @@ export default function CatatanMinyakPage() {
     editingTxId,
   ]);
 
-  // Handler Pilih Jenis BBM di Form
   const handleSelectFuelOption = (option: FuelTypeOption) => {
     setTxJenisBbm(option.name);
     setTxHargaPerLiter(option.pricePerLiter);
   };
 
-  // Handler Submit Transaksi BBM
   const handleSubmitTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
     const bayar = Number(txTotalBayar);
     if (!bayar || bayar <= 0) {
-      alert("Masukkan nominal pengisian BBM yang valid.");
+      alert("Masukkan nominal isi yang valid.");
       return;
     }
 
@@ -378,14 +336,12 @@ export default function CatatanMinyakPage() {
       await addFuelTransaction(payload);
     }
 
-    // Reset form
     setTxOdometerKm("");
     setTxKeterangan("");
     setTxCustomPotongModal(String(settings.subsidyPerFill));
     await loadAllData();
   };
 
-  // Handler Klik Edit Baris Transaksi
   const handleEditClick = (tx: FuelTransaction) => {
     setEditingTxId(tx.id);
     setTxTanggal(tx.tanggal);
@@ -409,29 +365,27 @@ export default function CatatanMinyakPage() {
   };
 
   const handleDeleteTx = async (id: string) => {
-    if (!confirm("Hapus catatan pengisian BBM ini?")) return;
+    if (!confirm("Hapus catatan ini?")) return;
     await deleteFuelTransaction(id);
-    if (editingTxId === id) {
-      handleCancelEdit();
-    }
+    if (editingTxId === id) handleCancelEdit();
     await loadAllData();
   };
 
-  // Handler Refill Modal
   const handleAddRefill = async (e: React.FormEvent) => {
     e.preventDefault();
     const nominal = Number(refillNominal);
     if (!nominal || nominal <= 0) {
-      alert("Masukkan nominal modal yang valid.");
+      alert("Masukkan nominal yang valid.");
       return;
     }
     await addCapitalRefill({
       tanggal: refillTanggal,
       nominal,
-      keterangan: refillKeterangan.trim() || "Refill Modal Minyak",
+      keterangan: refillKeterangan.trim() || "Refill Modal",
     });
     setRefillNominal("500000");
-    setRefillKeterangan("Refill Tambahan Modal");
+    setRefillKeterangan("Refill Modal");
+    setShowRefillModal(false);
     await loadAllData();
   };
 
@@ -441,7 +395,6 @@ export default function CatatanMinyakPage() {
     await loadAllData();
   };
 
-  // Handler Simpan Pengaturan BBM & Jatah Sekali Isi
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     const subsidy = Number(editSubsidy) || 40000;
@@ -472,23 +425,21 @@ export default function CatatanMinyakPage() {
     setNewFuelPrice("");
   };
 
-  // Handler Export CSV
   const handleExportCsv = () => {
     const headers = [
       "Tanggal",
-      "Jenis BBM",
-      "Harga/Liter (Rp)",
-      "Jumlah Liter",
-      "Total Isi (Rp)",
-      "Ambil dari Modal?",
-      "Potong Modal (Rp)",
-      "Uang Harian (Rp)",
-      "KM Saat Isi",
-      "KM Sebelumnya",
-      "Jarak Tempuh (KM)",
-      "Rata-rata (km/L dari isi sblm)",
-      "Rata-rata (km/L dari isi skrg)",
-      "Keterangan",
+      "BBM",
+      "Harga/L",
+      "Liter",
+      "Total Bayar",
+      "Pakai Modal",
+      "Potong Modal",
+      "Uang Harian",
+      "KM",
+      "KM Sebelum",
+      "Jarak (KM)",
+      "km/L",
+      "Catatan",
     ];
 
     const rows = filteredTransactions.map((t) => [
@@ -504,7 +455,6 @@ export default function CatatanMinyakPage() {
       t.prevOdometerKm || "",
       t.jarakTempuhKm || "",
       t.kmPerLiterFromPrev || "",
-      t.kmPerLiterFromCurrent || "",
       `"${(t.keterangan || "").replace(/"/g, '""')}"`,
     ]);
 
@@ -521,343 +471,231 @@ export default function CatatanMinyakPage() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    setShowNavMenu(false);
   };
 
   return (
-    <div className="min-h-screen pb-16">
-      {/* Top Navbar */}
-      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3.5">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-sm">
+    <div className="min-h-screen bg-slate-50 pb-16 text-slate-900">
+      {/* ===================================================== */}
+      {/* NAVBAR SIMPEL & RESPONSIF                             */}
+      {/* ===================================================== */}
+      <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/95 backdrop-blur-md">
+        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-2.5 sm:py-3">
+          {/* Logo & Judul */}
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-xs">
               <Fuel className="h-5 w-5" />
             </div>
             <div>
-              <h1 className="text-lg font-bold tracking-tight text-slate-900">
-                Catatan Minyak & BBM
-              </h1>
-              <p className="text-xs text-slate-500">
-                Manajemen Kantong Modal, Uang Harian & Pantauan KM/L
-              </p>
+              <div className="flex items-center gap-2">
+                <h1 className="text-base font-bold tracking-tight text-slate-900">
+                  Catatan Minyak
+                </h1>
+                {/* Status Dot Indikator Cloud */}
+                <span
+                  title={
+                    connState === "connected"
+                      ? "Cloud Aktif"
+                      : "Penyimpanan Lokal"
+                  }
+                  className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                    connState === "connected"
+                      ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-300"
+                      : "bg-amber-50 text-amber-800 ring-1 ring-amber-300"
+                  }`}
+                >
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full ${
+                      connState === "connected"
+                        ? "bg-emerald-500 animate-pulse"
+                        : "bg-amber-500"
+                    }`}
+                  />
+                  {connState === "connected" ? "Cloud" : "Lokal"}
+                </span>
+              </div>
             </div>
           </div>
 
-          <div className="no-print flex flex-wrap items-center gap-2">
-            {/* Status Database Badge */}
-            <div
-              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${
-                connState === "connected"
-                  ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
-                  : "bg-amber-50 text-amber-800 ring-1 ring-amber-200"
-              }`}
-              title={
-                connState === "connected"
-                  ? "Terhubung ke Cloud Firestore (catatan-minyak)"
-                  : "Buka tab Rules di Firestore untuk mengaktifkan izin baca/tulis Cloud."
-              }
+          {/* Action Buttons Navbar */}
+          <div className="no-print flex items-center gap-1.5 sm:gap-2">
+            {/* Tombol Refill Modal Utama */}
+            <button
+              onClick={() => setShowRefillModal(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-xs transition hover:bg-emerald-700 active:scale-95"
             >
-              {connState === "connected" ? (
+              <Wallet className="h-3.5 w-3.5" />
+              <span>+ Refill</span>
+            </button>
+
+            {/* Tombol Pengaturan */}
+            <button
+              onClick={() => setShowSettingsModal(true)}
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 shadow-xs hover:bg-slate-50 active:scale-95"
+              title="Pengaturan BBM & Jatah"
+            >
+              <Settings className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Pengaturan</span>
+            </button>
+
+            {/* Tombol Export / Print Dropdown Menu */}
+            <div className="relative">
+              <button
+                onClick={() => setShowNavMenu(!showNavMenu)}
+                className="inline-flex items-center rounded-lg border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-slate-50"
+                title="Menu Lainnya"
+              >
+                <MoreVertical className="h-4 w-4" />
+              </button>
+
+              {showNavMenu && (
                 <>
-                  <Cloud className="h-3.5 w-3.5" />
-                  <span>Firebase Cloud Aktif</span>
-                </>
-              ) : (
-                <>
-                  <HardDrive className="h-3.5 w-3.5" />
-                  <span>
-                    {connState === "permission_denied"
-                      ? "Menunggu Izin Rules Firebase"
-                      : "Penyimpanan Lokal"}
-                  </span>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setShowNavMenu(false)}
+                  />
+                  <div className="absolute right-0 top-full z-50 mt-1.5 w-36 rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+                    <button
+                      onClick={handleExportCsv}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      <Download className="h-3.5 w-3.5 text-slate-400" />
+                      <span>Export CSV</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowNavMenu(false);
+                        window.print();
+                      }}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      <Printer className="h-3.5 w-3.5 text-slate-400" />
+                      <span>Print Laporan</span>
+                    </button>
+                  </div>
                 </>
               )}
             </div>
-
-            <button
-              onClick={() => setShowRefillModal(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700"
-            >
-              <Wallet className="h-3.5 w-3.5" />
-              <span>Atur / Refill Modal</span>
-            </button>
-
-            <button
-              onClick={() => setShowSettingsModal(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
-            >
-              <Settings className="h-3.5 w-3.5" />
-              <span>Setting BBM & Jatah</span>
-            </button>
-
-            <button
-              onClick={handleExportCsv}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
-              title="Download CSV untuk Excel"
-            >
-              <Download className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Export CSV</span>
-            </button>
-
-            <button
-              onClick={() => window.print()}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
-              title="Cetak / Simpan PDF"
-            >
-              <Printer className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Print</span>
-            </button>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl space-y-6 px-4 pt-6">
-        {connState === "permission_denied" && (
-          <div className="no-print rounded-2xl border border-amber-300 bg-amber-50 p-4 text-xs text-amber-950 shadow-xs">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="font-bold text-amber-900">
-                ⚡ Satu Langkah Terakhir di Firebase Console: Buka Izin Baca/Tulis (Rules)
-              </p>
-              <button
-                onClick={loadAllData}
-                className="inline-flex items-center gap-1 rounded-lg bg-amber-900 px-3 py-1 text-xs font-bold text-white hover:bg-amber-800"
-              >
-                <RefreshCw className="h-3.5 w-3.5" />
-                Cek Ulang Koneksi
-              </button>
-            </div>
-            <p className="mt-1 text-amber-800">
-              Konfigurasi project <strong>catatan-minyak</strong> sudah terpasang! Agar aplikasi bisa menyimpan data tanpa login, buka{" "}
-              <a
-                href="https://console.firebase.google.com/project/catatan-minyak/firestore/databases/-default-/rules"
-                target="_blank"
-                rel="noreferrer"
-                className="font-bold underline"
-              >
-                Halaman Firestore Rules (Klik di sini)
-              </a>
-              , ubah <code className="rounded bg-amber-200/70 px-1 font-mono">allow read, write: if false;</code> menjadi{" "}
-              <code className="rounded bg-emerald-200 px-1 font-mono font-bold text-emerald-950">
-                allow read, write: if true;
-              </code>{" "}
-              lalu klik tombol <strong>Publish</strong>.
-            </p>
-          </div>
-        )}
-
+      <main className="mx-auto max-w-5xl space-y-5 px-4 pt-5">
         {/* ===================================================== */}
-        {/* BAGIAN 1: KANTONG MODAL MINYAK & SIMULASI JATAH NGISI */}
+        {/* BAGIAN 1: KANTONG MODAL & STATISTIK RINGKAS           */}
         {/* ===================================================== */}
         <section className="grid grid-cols-1 gap-4 lg:grid-cols-12">
           {/* Kartu Utama Kantong Modal */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-950 p-6 text-white shadow-md lg:col-span-7">
-            <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="relative rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-950 p-5 text-white shadow-xs lg:col-span-7">
+            <div className="flex items-start justify-between">
               <div>
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-xs font-medium text-emerald-300 ring-1 ring-emerald-400/30">
-                  <Wallet className="h-3.5 w-3.5" />
-                  Kantong Modal Minyak (Terpisah dari Uang Harian)
+                <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/20 px-2 py-0.5 text-[11px] font-semibold text-emerald-300">
+                  <Wallet className="h-3 w-3" />
+                  Saldo Modal Minyak
                 </span>
-                <p className="mt-3 text-xs uppercase tracking-wider text-slate-400">
-                  Sisa Saldo Modal Saat Ini
-                </p>
-                <h2 className="mt-1 text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
+                <h2 className="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">
                   {formatRupiah(capitalSummary.sisaModal)}
                 </h2>
                 <p className="mt-1 text-xs text-slate-300">
-                  Dari total modal masuk{" "}
-                  <span className="font-semibold text-white">
-                    {formatRupiah(capitalSummary.totalModalMasuk)}
-                  </span>{" "}
-                  • Terpakai{" "}
-                  <span className="font-semibold text-amber-300">
+                  Masuk: {formatRupiah(capitalSummary.totalModalMasuk)} • Terpakai:{" "}
+                  <span className="text-amber-300">
                     {formatRupiah(capitalSummary.totalModalTerpakai)}
                   </span>{" "}
-                  ({capitalSummary.berapaKaliPakaiModal}x ambil modal)
+                  ({capitalSummary.berapaKaliPakaiModal}x)
                 </p>
               </div>
 
-              <div className="no-print flex flex-col items-end gap-2">
-                <button
-                  onClick={() => setShowRefillModal(true)}
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-500 px-3.5 py-2 text-xs font-bold text-slate-950 shadow transition hover:bg-emerald-400"
-                >
-                  <Plus className="h-4 w-4" />
-                  Refill / Tambah Modal
-                </button>
-                <button
-                  onClick={() => setShowSettingsModal(true)}
-                  className="text-xs text-slate-300 underline decoration-slate-500 underline-offset-4 hover:text-white"
-                >
-                  Ubah jatah sekali ngisi ({formatRupiah(capitalSummary.jatahSekaliIsi)})
-                </button>
-              </div>
+              <button
+                onClick={() => setShowSettingsModal(true)}
+                className="text-right text-[11px] text-slate-300 underline underline-offset-4 hover:text-white"
+              >
+                Jatah: {formatRupiah(capitalSummary.jatahSekaliIsi)} / isi
+              </button>
             </div>
 
-            {/* Kotak Pembagian Sekali Ngisi */}
-            <div className="mt-6 grid grid-cols-1 gap-3 rounded-xl bg-white/10 p-4 backdrop-blur-sm sm:grid-cols-3">
+            {/* 3 Kotak Ringkasan Kuota */}
+            <div className="mt-4 grid grid-cols-3 gap-2 rounded-xl bg-white/10 p-3 text-center backdrop-blur-xs">
               <div>
-                <p className="text-xs text-slate-300">Jatah Ambil Sekali Isi</p>
-                <p className="mt-0.5 text-lg font-bold text-emerald-300">
+                <p className="text-[11px] text-slate-300">Jatah / Isi</p>
+                <p className="mt-0.5 text-sm font-bold text-emerald-300">
                   {formatRupiah(capitalSummary.jatahSekaliIsi)}
-                  <span className="text-xs font-normal text-slate-300"> / isi</span>
                 </p>
               </div>
               <div>
-                <p className="text-xs text-slate-300">Total Kuota Awal Modal</p>
-                <p className="mt-0.5 text-lg font-bold text-white">
-                  {capitalSummary.kuotaDariTotalModal}x{" "}
-                  <span className="text-xs font-normal text-slate-300">
-                    ngisi
-                  </span>
+                <p className="text-[11px] text-slate-300">Total Kuota</p>
+                <p className="mt-0.5 text-sm font-bold text-white">
+                  {capitalSummary.kuotaDariTotalModal}x
                 </p>
               </div>
-              <div className="rounded-lg bg-emerald-500/20 px-3 py-1.5 ring-1 ring-emerald-400/40">
-                <p className="text-xs font-medium text-emerald-200">
-                  Sisa Kuota dari Modal
+              <div className="rounded-lg bg-emerald-500/20 py-1 ring-1 ring-emerald-400/30">
+                <p className="text-[11px] font-medium text-emerald-200">
+                  Sisa Kuota
                 </p>
-                <p className="mt-0.5 text-xl font-black text-white">
-                  {capitalSummary.sisaKuotaNgisi}x{" "}
-                  <span className="text-xs font-normal text-emerald-100">
-                    ngisi lagi
-                  </span>
+                <p className="mt-0.5 text-base font-extrabold text-white">
+                  {capitalSummary.sisaKuotaNgisi}x
                 </p>
-                {capitalSummary.sisaRecehModal > 0 && (
-                  <p className="text-[11px] text-emerald-200">
-                    + sisa {formatRupiah(capitalSummary.sisaRecehModal)}
-                  </p>
-                )}
               </div>
             </div>
           </div>
 
-          {/* Kartu Statistik Keiritan (KM/L) & Uang Harian */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:col-span-5">
+          {/* 2 Kartu Statistik: KM/L & Uang Harian */}
+          <div className="grid grid-cols-2 gap-3 lg:col-span-5">
             {/* Kartu Rata-rata KM/L */}
-            <div className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div>
-                <div className="flex items-center justify-between">
-                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
-                    <Gauge className="h-4 w-4" />
-                    Rata-rata Konsumsi
-                  </span>
-                  <button
-                    onClick={() => setShowSettingsModal(true)}
-                    className="no-print text-[11px] font-medium text-slate-400 hover:text-slate-600"
-                    title="Ganti rumus acuan km/L"
-                  >
-                    Ubah metode
-                  </button>
-                </div>
-
-                <div className="mt-4">
-                  {stats.avgKmPerLiter !== null ? (
-                    <div className="flex items-baseline gap-1.5">
-                      <span className="text-3xl font-extrabold text-slate-900">
-                        {formatNumber(stats.avgKmPerLiter, 2)}
-                      </span>
-                      <span className="text-sm font-bold text-blue-600">
-                        km / Liter
-                      </span>
-                    </div>
-                  ) : (
-                    <p className="text-sm font-semibold text-slate-400">
-                      Butuh min. 2 input KM
-                    </p>
-                  )}
-
-                  <p className="mt-1 text-xs text-slate-500">
-                    {settings.kmPerLiterMethod === "prev_liter"
-                      ? "Acuan: Jarak ÷ Liter isi sebelumnya"
-                      : "Acuan: Jarak ÷ Liter isi saat itu"}
-                  </p>
-
-                  {stats.altAvgKmPerLiter !== null && (
-                    <p className="mt-1 text-[11px] text-slate-400">
-                      ({settings.kmPerLiterMethod === "prev_liter"
-                        ? "Jika ÷ liter isi baru: "
-                        : "Jika ÷ liter isi sblm: "}
-                      <strong className="text-slate-600">
-                        {formatNumber(stats.altAvgKmPerLiter, 2)} km/L
-                      </strong>
-                      )
-                    </p>
-                  )}
-                </div>
+            <div className="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs">
+              <div className="flex items-center justify-between">
+                <span className="inline-flex items-center gap-1 text-xs font-bold text-slate-600">
+                  <Gauge className="h-3.5 w-3.5 text-blue-600" />
+                  Konsumsi BBM
+                </span>
               </div>
-
-              <div className="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-600">
-                <div className="flex justify-between">
-                  <span>Odometer Terakhir:</span>
-                  <strong className="text-slate-900">
-                    {stats.maxOdometer > 0
-                      ? `${formatNumber(stats.maxOdometer, 0)} KM`
-                      : "-"}
-                  </strong>
-                </div>
-                <div className="mt-1 flex justify-between">
-                  <span>Total Jarak Tercatat:</span>
-                  <strong className="text-emerald-700">
-                    +{formatNumber(stats.totalJarakKm, 0)} km
-                  </strong>
-                </div>
+              <div className="my-2">
+                {stats.avgKmPerLiter !== null ? (
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-2xl font-extrabold text-slate-900 sm:text-3xl">
+                      {formatNumber(stats.avgKmPerLiter, 1)}
+                    </span>
+                    <span className="text-xs font-bold text-blue-600">km/L</span>
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-400">Belum cukup data</p>
+                )}
+              </div>
+              <div className="border-t border-slate-100 pt-2 text-[11px] text-slate-500">
+                Odo: {stats.maxOdometer > 0 ? `${formatNumber(stats.maxOdometer, 0)} KM` : "-"}
+                {stats.totalJarakKm > 0 && ` (+${formatNumber(stats.totalJarakKm, 0)} km)`}
               </div>
             </div>
 
-            {/* Kartu Rincian Uang Harian vs Modal */}
-            <div className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div>
-                <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800">
-                  <TrendingUp className="h-4 w-4" />
-                  Uang Harian Terpakai
-                </span>
-
-                <div className="mt-4">
-                  <p className="text-2xl font-extrabold text-slate-900">
-                    {formatRupiah(stats.totalUangHarian)}
-                  </p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    Uang tambahan di luar subsidi modal
-                  </p>
-                </div>
+            {/* Kartu Uang Harian */}
+            <div className="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs">
+              <span className="inline-flex items-center gap-1 text-xs font-bold text-slate-600">
+                <TrendingUp className="h-3.5 w-3.5 text-amber-600" />
+                Uang Harian
+              </span>
+              <div className="my-2">
+                <p className="text-xl font-extrabold text-slate-900 sm:text-2xl">
+                  {formatRupiah(stats.totalUangHarian)}
+                </p>
               </div>
-
-              <div className="mt-4 space-y-1.5 border-t border-slate-100 pt-3 text-xs text-slate-600">
-                <div className="flex justify-between">
-                  <span>Total Beli BBM:</span>
-                  <strong className="text-slate-900">
-                    {formatRupiah(stats.totalPengeluaran)}
-                  </strong>
-                </div>
-                <div className="flex justify-between">
-                  <span>Dibantu Modal:</span>
-                  <strong className="text-emerald-700">
-                    {formatRupiah(stats.totalDariModal)}
-                  </strong>
-                </div>
-                <div className="flex justify-between">
-                  <span>Total Liter BBM:</span>
-                  <strong className="text-blue-700">
-                    {formatNumber(stats.totalLiter, 2)} Liter
-                  </strong>
-                </div>
+              <div className="border-t border-slate-100 pt-2 text-[11px] text-slate-500">
+                Beli: {formatRupiah(stats.totalPengeluaran)}
               </div>
             </div>
           </div>
         </section>
 
         {/* ===================================================== */}
-        {/* BAGIAN 2: FORM INPUT NGISI BBM & TABEL RIWAYAT        */}
+        {/* BAGIAN 2: FORM CATAT NGISI BBM & RIWAYAT              */}
         {/* ===================================================== */}
-        <section className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-          {/* KOLOM KIRI: FORM CATAT NGISI BBM */}
+        <section className="grid grid-cols-1 gap-5 lg:grid-cols-12">
+          {/* FORM INPUT PENGISIAN BBM */}
           <div className="no-print lg:col-span-5">
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
-                <div className="flex items-center gap-2">
-                  <PlusCircle className="h-5 w-5 text-emerald-600" />
-                  <h3 className="text-base font-bold text-slate-900">
-                    {editingTxId
-                      ? "Edit Catatan Ngisi BBM"
-                      : "Catat Ngisi BBM Baru"}
+            <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                <div className="flex items-center gap-1.5">
+                  <PlusCircle className="h-4 w-4 text-emerald-600" />
+                  <h3 className="text-sm font-bold text-slate-900">
+                    {editingTxId ? "Edit Catatan" : "Catat Isi BBM"}
                   </h3>
                 </div>
                 {editingTxId && (
@@ -866,28 +704,27 @@ export default function CatatanMinyakPage() {
                     onClick={handleCancelEdit}
                     className="text-xs font-semibold text-rose-600 hover:underline"
                   >
-                    Batal Edit
+                    Batal
                   </button>
                 )}
               </div>
 
-              <form onSubmit={handleSubmitTransaction} className="mt-4 space-y-4">
-                {/* 1. Pilih Jenis BBM (Tinggal Klik) */}
+              <form onSubmit={handleSubmitTransaction} className="mt-3.5 space-y-3.5">
+                {/* 1. Pilihan Jenis BBM */}
                 <div>
                   <div className="flex items-center justify-between">
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-600">
-                      1. Pilih Jenis BBM
+                    <label className="text-[11px] font-bold text-slate-600">
+                      Jenis BBM
                     </label>
                     <button
                       type="button"
                       onClick={() => setShowSettingsModal(true)}
-                      className="text-[11px] font-semibold text-emerald-600 hover:underline"
+                      className="text-[10px] font-semibold text-emerald-600 hover:underline"
                     >
-                      Atur Harga BBM
+                      Ubah Harga
                     </button>
                   </div>
-
-                  <div className="mt-2 grid grid-cols-3 gap-2">
+                  <div className="mt-1.5 grid grid-cols-3 gap-1.5">
                     {settings.fuelTypes.map((fuel) => {
                       const active = txJenisBbm === fuel.name;
                       return (
@@ -895,20 +732,20 @@ export default function CatatanMinyakPage() {
                           key={fuel.id}
                           type="button"
                           onClick={() => handleSelectFuelOption(fuel)}
-                          className={`flex flex-col items-start rounded-xl border p-2.5 text-left transition ${
+                          className={`rounded-xl border p-2 text-center transition ${
                             active
-                              ? "border-emerald-600 bg-emerald-50/70 ring-2 ring-emerald-600/20"
+                              ? "border-emerald-600 bg-emerald-50 ring-1 ring-emerald-600"
                               : "border-slate-200 bg-white hover:bg-slate-50"
                           }`}
                         >
                           <span
-                            className={`text-xs font-bold ${
+                            className={`block text-xs font-bold ${
                               active ? "text-emerald-900" : "text-slate-800"
                             }`}
                           >
                             {fuel.name}
                           </span>
-                          <span className="mt-0.5 text-[11px] font-medium text-slate-500">
+                          <span className="text-[10px] text-slate-500">
                             {formatRupiah(fuel.pricePerLiter)}/L
                           </span>
                         </button>
@@ -917,65 +754,47 @@ export default function CatatanMinyakPage() {
                   </div>
                 </div>
 
-                {/* 2. Tanggal & Nominal Isi (Rp) */}
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {/* 2. Tanggal & Total Bayar */}
+                <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700">
-                      Tanggal Ngisi
+                    <label className="block text-[11px] font-semibold text-slate-600">
+                      Tanggal
                     </label>
                     <input
                       type="date"
                       value={txTanggal}
                       onChange={(e) => setTxTanggal(e.target.value)}
                       required
-                      className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
+                      className="mt-1 w-full rounded-xl border border-slate-300 px-2.5 py-1.5 text-xs font-medium focus:border-emerald-600 focus:outline-hidden"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700">
-                      Harga BBM / Liter (Rp)
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-semibold text-slate-600">
+                        Total Bayar (Rp)
+                      </label>
+                    </div>
                     <input
                       type="number"
-                      value={txHargaPerLiter}
-                      onChange={(e) =>
-                        setTxHargaPerLiter(Number(e.target.value))
-                      }
+                      value={txTotalBayar}
+                      onChange={(e) => setTxTotalBayar(e.target.value)}
+                      placeholder="65000"
                       required
-                      className="mt-1 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 focus:border-emerald-600 focus:bg-white focus:outline-none"
+                      className="mt-1 w-full rounded-xl border border-slate-300 px-2.5 py-1.5 text-sm font-bold text-slate-900 focus:border-emerald-600 focus:outline-hidden"
                     />
                   </div>
                 </div>
 
-                {/* Nominal Total Isi BBM + Tombol Cepat 65rb / 70rb / 75rb */}
-                <div>
-                  <div className="flex items-center justify-between">
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-600">
-                      2. Total Isi BBM (Rp)
-                    </label>
-                    <span className="rounded-md bg-blue-50 px-2 py-0.5 text-xs font-bold text-blue-700">
-                      Dapat ≈ {formatNumber(formPreview.liter, 2)} Liter
-                    </span>
-                  </div>
-
-                  <input
-                    type="number"
-                    value={txTotalBayar}
-                    onChange={(e) => setTxTotalBayar(e.target.value)}
-                    placeholder="Contoh: 65000 atau 75000"
-                    required
-                    className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-base font-bold text-slate-900 focus:border-emerald-600 focus:outline-none"
-                  />
-
-                  {/* Tombol Pilihan Cepat */}
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {[40000, 50000, 65000, 70000, 75000, 100000].map((nom) => (
+                {/* Chips Nominal Cepat & Info Liter */}
+                <div className="flex items-center justify-between gap-1.5">
+                  <div className="flex flex-wrap gap-1">
+                    {[50000, 65000, 70000, 75000, 100000].map((nom) => (
                       <button
                         key={nom}
                         type="button"
                         onClick={() => setTxTotalBayar(String(nom))}
-                        className={`rounded-lg border px-2.5 py-1 text-xs font-semibold transition ${
+                        className={`rounded-lg border px-2 py-0.5 text-[11px] font-semibold transition ${
                           Number(txTotalBayar) === nom
                             ? "border-slate-900 bg-slate-900 text-white"
                             : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
@@ -985,44 +804,38 @@ export default function CatatanMinyakPage() {
                       </button>
                     ))}
                   </div>
+                  <span className="shrink-0 rounded-md bg-blue-50 px-2 py-0.5 text-[11px] font-bold text-blue-700">
+                    {formatNumber(formPreview.liter, 2)} L
+                  </span>
                 </div>
 
-                {/* 3. Penanda Ambil dari Modal vs Tidak */}
-                <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3.5">
+                {/* 3. Ambil dari Modal (Toggle Simpel) */}
+                <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-2.5">
                   <div className="flex items-center justify-between">
-                    <div>
-                      <span className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-                        3. Ambil Bantuan dari Modal?
-                      </span>
-                      <span className="text-[11px] text-slate-500">
-                        Jatah modal: {formatRupiah(settings.subsidyPerFill)} sekali isi
-                      </span>
-                    </div>
-
-                    {/* Switch Ya / Tidak */}
-                    <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
+                    <span className="text-xs font-bold text-slate-700">
+                      Pakai Subsidi Modal?
+                    </span>
+                    <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 text-xs">
                       <button
                         type="button"
                         onClick={() => {
                           setTxPakaiModal(true);
-                          setTxCustomPotongModal(
-                            String(settings.subsidyPerFill)
-                          );
+                          setTxCustomPotongModal(String(settings.subsidyPerFill));
                         }}
-                        className={`rounded-md px-3 py-1 text-xs font-bold transition ${
+                        className={`rounded-md px-2.5 py-0.5 font-bold transition ${
                           txPakaiModal
-                            ? "bg-emerald-600 text-white shadow-sm"
+                            ? "bg-emerald-600 text-white"
                             : "text-slate-500 hover:text-slate-800"
                         }`}
                       >
-                        Ya, Ambil
+                        Ya
                       </button>
                       <button
                         type="button"
                         onClick={() => setTxPakaiModal(false)}
-                        className={`rounded-md px-3 py-1 text-xs font-bold transition ${
+                        className={`rounded-md px-2.5 py-0.5 font-bold transition ${
                           !txPakaiModal
-                            ? "bg-slate-800 text-white shadow-sm"
+                            ? "bg-slate-800 text-white"
                             : "text-slate-500 hover:text-slate-800"
                         }`}
                       >
@@ -1031,158 +844,109 @@ export default function CatatanMinyakPage() {
                     </div>
                   </div>
 
-                  {txPakaiModal && (
-                    <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-200/80 pt-2.5">
-                      <label className="text-xs font-medium text-slate-600">
-                        Nominal diambil dari modal (Rp):
-                      </label>
-                      <input
-                        type="number"
-                        value={txCustomPotongModal}
-                        onChange={(e) => setTxCustomPotongModal(e.target.value)}
-                        className="w-28 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-right text-xs font-bold text-emerald-700"
-                      />
-                    </div>
-                  )}
-
-                  {/* Rincian Pembagian Uang */}
-                  <div className="mt-3 grid grid-cols-2 gap-2 rounded-lg bg-white p-2.5 text-xs ring-1 ring-slate-200/70">
+                  {/* Rincian Potongan */}
+                  <div className="mt-2 flex items-center justify-between rounded-lg bg-white px-2.5 py-1.5 text-xs ring-1 ring-slate-200">
                     <div>
-                      <span className="text-slate-500">Potong dari Modal:</span>
-                      <p className="font-bold text-emerald-700">
+                      <span className="text-[10px] text-slate-500">Modal:</span>{" "}
+                      <strong className="text-emerald-700">
                         {formatRupiah(formPreview.potongModal)}
-                      </p>
+                      </strong>
                     </div>
                     <div>
-                      <span className="text-slate-500">Pakai Uang Harian:</span>
-                      <p className="font-bold text-amber-700">
+                      <span className="text-[10px] text-slate-500">Harian:</span>{" "}
+                      <strong className="text-amber-700">
                         {formatRupiah(formPreview.uangHarian)}
-                      </p>
+                      </strong>
                     </div>
                   </div>
                 </div>
 
-                {/* 4. Input KM (Odometer) Saat Ngisi */}
+                {/* 4. Odometer (KM) */}
                 <div>
                   <div className="flex items-center justify-between">
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-600">
-                      4. Odometer / KM Saat Ngisi
+                    <label className="text-[11px] font-semibold text-slate-600">
+                      Odometer (KM)
                     </label>
                     {stats.maxOdometer > 0 && (
-                      <span className="text-[11px] font-medium text-slate-500">
-                        KM Terakhir:{" "}
-                        <strong className="text-slate-800">
-                          {formatNumber(stats.maxOdometer, 0)} KM
-                        </strong>
+                      <span className="text-[10px] text-slate-400">
+                        Terakhir: {formatNumber(stats.maxOdometer, 0)} KM
                       </span>
                     )}
                   </div>
-
                   <input
                     type="number"
                     value={txOdometerKm}
                     onChange={(e) => setTxOdometerKm(e.target.value)}
-                    placeholder="Contoh: 200 lalu isi berikutnya 392"
-                    className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm font-semibold text-slate-900 focus:border-emerald-600 focus:outline-none"
+                    placeholder="Contoh: 200, 392..."
+                    className="mt-1 w-full rounded-xl border border-slate-300 px-2.5 py-1.5 text-xs font-semibold text-slate-900 focus:border-emerald-600 focus:outline-hidden"
                   />
 
-                  {/* Preview Otomatis Selisih KM & KM/L */}
-                  {formPreview.selisihKm !== null && formPreview.prevTx && (
-                    <div className="mt-2 rounded-xl bg-blue-50/80 p-2.5 text-xs text-blue-900 ring-1 ring-blue-200">
-                      <div className="flex items-center justify-between font-semibold">
-                        <span>
-                          Jarak dari KM {formPreview.prevTx.odometerKm} →{" "}
-                          {txOdometerKm}:
-                        </span>
-                        <span className="rounded bg-blue-600 px-1.5 py-0.5 text-white">
-                          +{formatNumber(formPreview.selisihKm, 0)} km
-                        </span>
-                      </div>
-                      <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-blue-800">
-                        {formPreview.estKmPerLPrev !== null && (
-                          <span>
-                            • Dari BBM isi sblm ({formPreview.prevTx.jumlahLiter} L):{" "}
-                            <strong>{formPreview.estKmPerLPrev} km/L</strong>
-                          </span>
-                        )}
-                        {formPreview.estKmPerLCurr !== null && (
-                          <span>
-                            • Dari BBM isi skrg ({formPreview.liter} L):{" "}
-                            <strong>{formPreview.estKmPerLCurr} km/L</strong>
-                          </span>
-                        )}
-                      </div>
+                  {formPreview.selisihKm !== null && (
+                    <div className="mt-1.5 flex items-center justify-between rounded-lg bg-blue-50 px-2 py-1 text-[11px] font-medium text-blue-800">
+                      <span>Jarak tempuh:</span>
+                      <strong className="font-bold">+{formatNumber(formPreview.selisihKm, 0)} km</strong>
                     </div>
                   )}
                 </div>
 
-                {/* 5. Catatan Tambahan */}
+                {/* 5. Catatan / Lokasi */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700">
-                    Catatan / Keterangan (Opsional)
+                  <label className="block text-[11px] font-semibold text-slate-600">
+                    Catatan (Opsional)
                   </label>
                   <input
                     type="text"
                     value={txKeterangan}
                     onChange={(e) => setTxKeterangan(e.target.value)}
-                    placeholder="Misal: Isi SPBU Sudirman / Perjalanan luar kota"
-                    className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
+                    placeholder="Lokasi SPBU / keperluan"
+                    className="mt-1 w-full rounded-xl border border-slate-300 px-2.5 py-1.5 text-xs focus:border-emerald-600 focus:outline-hidden"
                   />
                 </div>
 
                 <button
                   type="submit"
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-700"
+                  className="w-full rounded-xl bg-emerald-600 py-2.5 text-xs font-bold text-white shadow-xs transition hover:bg-emerald-700 active:scale-98"
                 >
-                  <PlusCircle className="h-4 w-4" />
-                  <span>
-                    {editingTxId
-                      ? "Simpan Perubahan Catatan"
-                      : "Simpan Catatan Ngisi BBM"}
-                  </span>
+                  {editingTxId ? "Simpan Perubahan" : "Simpan Catatan"}
                 </button>
               </form>
             </div>
           </div>
 
-          {/* KOLOM KANAN: FILTER & TABEL RIWAYAT NGISI BBM */}
+          {/* TABEL RIWAYAT NGISI BBM */}
           <div className="lg:col-span-7">
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
-                <div>
-                  <h3 className="text-base font-bold text-slate-900">
-                    Riwayat Pengisian & Perkembangan KM/L
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    Menampilkan {filteredTransactions.length} catatan pengisian
-                    BBM
-                  </p>
-                </div>
+            <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                <h3 className="text-sm font-bold text-slate-900">
+                  Riwayat Pengisian ({filteredTransactions.length})
+                </h3>
 
-                {/* Filter Bar */}
-                <div className="no-print flex flex-wrap items-center gap-2">
-                  <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs">
-                    <Calendar className="h-3.5 w-3.5 text-slate-400" />
-                    <select
-                      value={filterBulan}
-                      onChange={(e) => setFilterBulan(e.target.value)}
-                      className="bg-transparent font-medium text-slate-700 focus:outline-none"
-                    >
-                      <option value="ALL">Semua Bulan</option>
-                      {availableMonths.map((m) => (
-                        <option key={m} value={m}>
-                          Bulan {m}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                {/* Filter Simpel */}
+                <div className="no-print flex items-center gap-1.5 text-xs">
+                  {availableMonths.length > 0 && (
+                    <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1">
+                      <Calendar className="h-3 w-3 text-slate-400" />
+                      <select
+                        value={filterBulan}
+                        onChange={(e) => setFilterBulan(e.target.value)}
+                        className="bg-transparent text-xs text-slate-700 focus:outline-hidden"
+                      >
+                        <option value="ALL">Semua Bulan</option>
+                        {availableMonths.map((m) => (
+                          <option key={m} value={m}>
+                            {m}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
 
-                  <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs">
-                    <Fuel className="h-3.5 w-3.5 text-slate-400" />
+                  <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1">
+                    <Filter className="h-3 w-3 text-slate-400" />
                     <select
                       value={filterBbm}
                       onChange={(e) => setFilterBbm(e.target.value)}
-                      className="bg-transparent font-medium text-slate-700 focus:outline-none"
+                      className="bg-transparent text-xs text-slate-700 focus:outline-hidden"
                     >
                       <option value="ALL">Semua BBM</option>
                       {settings.fuelTypes.map((f) => (
@@ -1192,168 +956,101 @@ export default function CatatanMinyakPage() {
                       ))}
                     </select>
                   </div>
-
-                  <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs">
-                    <Filter className="h-3.5 w-3.5 text-slate-400" />
-                    <select
-                      value={filterModalStatus}
-                      onChange={(e) => setFilterModalStatus(e.target.value)}
-                      className="bg-transparent font-medium text-slate-700 focus:outline-none"
-                    >
-                      <option value="ALL">Semua Status Modal</option>
-                      <option value="MODAL">Pakai Modal</option>
-                      <option value="NO_MODAL">Tanpa Modal</option>
-                    </select>
-                  </div>
                 </div>
               </div>
 
               {loading ? (
-                <div className="flex items-center justify-center py-12 text-sm text-slate-500">
-                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                  Memuat data catatan...
+                <div className="flex items-center justify-center py-10 text-xs text-slate-500">
+                  <RefreshCw className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  Memuat data...
                 </div>
               ) : filteredTransactions.length === 0 ? (
-                <div className="py-12 text-center">
-                  <p className="text-sm font-medium text-slate-600">
-                    Belum ada catatan pengisian BBM pada filter ini.
-                  </p>
-                  <p className="mt-1 text-xs text-slate-400">
-                    Silakan isi form di samping untuk mulai mencatat pengisian
-                    BBM dan memantau KM/L.
+                <div className="py-10 text-center">
+                  <p className="text-xs font-medium text-slate-500">
+                    Belum ada riwayat pengisian.
                   </p>
                 </div>
               ) : (
-                <div className="mt-4 space-y-3">
+                <div className="mt-3 space-y-2.5">
                   {filteredTransactions.map((tx) => {
-                    const primaryKmPerL =
+                    const kmPerL =
                       settings.kmPerLiterMethod === "prev_liter"
                         ? tx.kmPerLiterFromPrev
                         : tx.kmPerLiterFromCurrent;
-                    const secondaryKmPerL =
-                      settings.kmPerLiterMethod === "prev_liter"
-                        ? tx.kmPerLiterFromCurrent
-                        : tx.kmPerLiterFromPrev;
 
                     return (
                       <div
                         key={tx.id}
-                        className="rounded-xl border border-slate-200/90 bg-white p-4 transition hover:border-slate-300 hover:shadow-sm"
+                        className="rounded-xl border border-slate-200/80 bg-white p-3 transition hover:border-slate-300"
                       >
-                        <div className="flex flex-wrap items-start justify-between gap-2">
-                          {/* Kiri: Tanggal, Badge BBM, Liter */}
-                          <div className="space-y-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="text-xs font-bold text-slate-500">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="text-[11px] font-bold text-slate-500">
                                 {tx.tanggal}
                               </span>
-                              <span className="inline-flex items-center rounded-md bg-slate-900 px-2 py-0.5 text-xs font-bold text-white">
+                              <span className="rounded bg-slate-900 px-1.5 py-0.5 text-[10px] font-bold text-white">
                                 {tx.jenisBbm}
                               </span>
-                              <span className="rounded-md bg-blue-50 px-2 py-0.5 text-xs font-bold text-blue-700">
-                                {formatNumber(tx.jumlahLiter, 2)} Liter
-                              </span>
-                              <span className="text-[11px] text-slate-400">
-                                (@ {formatRupiah(tx.hargaPerLiter)}/L)
+                              <span className="text-xs font-bold text-blue-700">
+                                {formatNumber(tx.jumlahLiter, 2)} L
                               </span>
                             </div>
-
                             {tx.keterangan && (
-                              <p className="text-xs text-slate-600">
+                              <p className="mt-0.5 text-xs text-slate-600">
                                 {tx.keterangan}
                               </p>
                             )}
                           </div>
 
-                          {/* Kanan: Total Bayar & Tombol Edit/Hapus */}
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-2">
                             <div className="text-right">
-                              <p className="text-base font-extrabold text-slate-900">
+                              <p className="text-sm font-extrabold text-slate-900">
                                 {formatRupiah(tx.totalBayar)}
                               </p>
-                              <span className="text-[11px] text-slate-400">
-                                Total Isi BBM
-                              </span>
                             </div>
-
-                            <div className="no-print flex items-center gap-1">
+                            <div className="no-print flex items-center">
                               <button
                                 onClick={() => handleEditClick(tx)}
-                                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-                                title="Edit catatan"
+                                className="rounded p-1 text-slate-400 hover:text-slate-700"
                               >
-                                <Edit3 className="h-4 w-4" />
+                                <Edit3 className="h-3.5 w-3.5" />
                               </button>
                               <button
                                 onClick={() => handleDeleteTx(tx.id)}
-                                className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
-                                title="Hapus catatan"
+                                className="rounded p-1 text-slate-400 hover:text-rose-600"
                               >
-                                <Trash2 className="h-4 w-4" />
+                                <Trash2 className="h-3.5 w-3.5" />
                               </button>
                             </div>
                           </div>
                         </div>
 
-                        {/* Baris Bawah: Pembagian Modal vs Uang Harian & Statistik Odometer KM/L */}
-                        <div className="mt-3 grid grid-cols-1 gap-2 border-t border-slate-100 pt-3 sm:grid-cols-2">
-                          {/* Info Modal vs Uang Harian */}
-                          <div className="flex flex-wrap items-center gap-2 text-xs">
-                            {tx.pakaiModal ? (
-                              <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 font-semibold text-emerald-700 ring-1 ring-emerald-200">
-                                <CheckCircle2 className="h-3.5 w-3.5" />
-                                Ambil Modal: {formatRupiah(tx.potongModal)}
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 font-medium text-slate-600">
-                                <XCircle className="h-3.5 w-3.5" />
-                                Tanpa Modal
-                              </span>
-                            )}
-
-                            <span className="inline-flex items-center rounded-md bg-amber-50 px-2 py-1 font-semibold text-amber-800 ring-1 ring-amber-200/80">
-                              Uang Harian: {formatRupiah(tx.uangHarian)}
+                        {/* Rincian Modal, Harian & Odo */}
+                        <div className="mt-2 flex flex-wrap items-center justify-between gap-1.5 border-t border-slate-100 pt-2 text-[11px]">
+                          <div className="flex items-center gap-2">
+                            <span className="text-emerald-700">
+                              Modal: {formatRupiah(tx.potongModal)}
+                            </span>
+                            <span className="text-amber-800">
+                              Harian: {formatRupiah(tx.uangHarian)}
                             </span>
                           </div>
 
-                          {/* Info Odometer & KM/L */}
-                          <div className="flex flex-wrap items-center justify-start gap-2 text-xs sm:justify-end">
-                            {tx.odometerKm > 0 ? (
-                              <>
-                                <span className="rounded-md bg-slate-100 px-2 py-1 font-semibold text-slate-700">
-                                  {tx.prevOdometerKm ? (
-                                    <span className="inline-flex items-center gap-1">
-                                      <span>{tx.prevOdometerKm}</span>
-                                      <ArrowRight className="h-3 w-3 text-slate-400" />
-                                      <span>{tx.odometerKm} KM</span>
-                                    </span>
-                                  ) : (
-                                    <span>KM Awal: {tx.odometerKm} KM</span>
-                                  )}
-                                </span>
-
-                                {tx.jarakTempuhKm !== null && (
-                                  <span className="rounded-md bg-blue-50 px-2 py-1 font-bold text-blue-700">
-                                    +{formatNumber(tx.jarakTempuhKm, 0)} km
-                                  </span>
-                                )}
-
-                                {primaryKmPerL !== null && (
-                                  <span
-                                    className="rounded-md bg-indigo-600 px-2 py-1 font-bold text-white"
-                                    title={
-                                      secondaryKmPerL
-                                        ? `Metode alternatif: ${secondaryKmPerL} km/L`
-                                        : undefined
-                                    }
-                                  >
-                                    {formatNumber(primaryKmPerL, 2)} km/L
-                                  </span>
-                                )}
-                              </>
-                            ) : (
-                              <span className="text-[11px] italic text-slate-400">
-                                KM tidak dicatat
+                          <div className="flex items-center gap-1.5">
+                            {tx.odometerKm > 0 && (
+                              <span className="font-semibold text-slate-600">
+                                {tx.odometerKm} KM
+                              </span>
+                            )}
+                            {tx.jarakTempuhKm !== null && (
+                              <span className="rounded bg-blue-50 px-1.5 py-0.5 font-bold text-blue-700">
+                                +{formatNumber(tx.jarakTempuhKm, 0)} km
+                              </span>
+                            )}
+                            {kmPerL !== null && (
+                              <span className="rounded bg-emerald-600 px-1.5 py-0.5 font-bold text-white">
+                                {formatNumber(kmPerL, 1)} km/L
                               </span>
                             )}
                           </div>
@@ -1369,68 +1066,55 @@ export default function CatatanMinyakPage() {
       </main>
 
       {/* ===================================================== */}
-      {/* MODAL 1: ATUR / REFILL SALDO MODAL MINYAK             */}
+      {/* MODAL 1: REFILL MODAL                                 */}
       {/* ===================================================== */}
       {showRefillModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <Wallet className="h-5 w-5 text-emerald-600" />
-                <h3 className="text-base font-bold text-slate-900">
-                  Kantong Modal Minyak & Riwayat Refill
-                </h3>
-              </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <h3 className="text-sm font-bold text-slate-900">Refill Modal</h3>
               <button
                 onClick={() => setShowRefillModal(false)}
-                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                className="rounded p-1 text-slate-400 hover:text-slate-700"
               >
-                <X className="h-5 w-5" />
+                <X className="h-4 w-4" />
               </button>
             </div>
 
-            <form onSubmit={handleAddRefill} className="mt-4 space-y-3">
-              <p className="text-xs text-slate-600">
-                Tambahkan modal awal atau refill saldo modal kapan saja kamu
-                punya uang alokasi untuk minyak.
-              </p>
-
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700">
-                    Tanggal Refill
-                  </label>
-                  <input
-                    type="date"
-                    value={refillTanggal}
-                    onChange={(e) => setRefillTanggal(e.target.value)}
-                    required
-                    className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700">
-                    Nominal Modal (Rp)
-                  </label>
-                  <input
-                    type="number"
-                    value={refillNominal}
-                    onChange={(e) => setRefillNominal(e.target.value)}
-                    placeholder="Contoh: 1000000"
-                    required
-                    className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-bold"
-                  />
-                </div>
+            <form onSubmit={handleAddRefill} className="mt-3 space-y-3">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600">
+                  Tanggal
+                </label>
+                <input
+                  type="date"
+                  value={refillTanggal}
+                  onChange={(e) => setRefillTanggal(e.target.value)}
+                  required
+                  className="mt-1 w-full rounded-xl border border-slate-300 px-2.5 py-1.5 text-xs"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600">
+                  Nominal (Rp)
+                </label>
+                <input
+                  type="number"
+                  value={refillNominal}
+                  onChange={(e) => setRefillNominal(e.target.value)}
+                  placeholder="500000"
+                  required
+                  className="mt-1 w-full rounded-xl border border-slate-300 px-2.5 py-1.5 text-sm font-bold"
+                />
               </div>
 
-              {/* Pilihan Cepat Nominal Modal */}
-              <div className="flex flex-wrap gap-1.5">
-                {[200000, 500000, 1000000, 1500000, 2000000].map((nom) => (
+              <div className="flex flex-wrap gap-1">
+                {[200000, 500000, 1000000].map((nom) => (
                   <button
                     key={nom}
                     type="button"
                     onClick={() => setRefillNominal(String(nom))}
-                    className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                    className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-100"
                   >
                     {formatRupiah(nom)}
                   </button>
@@ -1438,116 +1122,101 @@ export default function CatatanMinyakPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700">
-                  Keterangan
+                <label className="block text-[11px] font-semibold text-slate-600">
+                  Catatan (Opsional)
                 </label>
                 <input
                   type="text"
                   value={refillKeterangan}
                   onChange={(e) => setRefillKeterangan(e.target.value)}
-                  placeholder="Contoh: Modal Awal Bulan Ini / Refill Gajian"
-                  className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                  className="mt-1 w-full rounded-xl border border-slate-300 px-2.5 py-1.5 text-xs"
                 />
               </div>
 
               <button
                 type="submit"
-                className="w-full rounded-xl bg-emerald-600 py-2.5 text-xs font-bold text-white shadow hover:bg-emerald-700"
+                className="w-full rounded-xl bg-emerald-600 py-2 text-xs font-bold text-white shadow-xs hover:bg-emerald-700"
               >
-                + Tambahkan ke Saldo Modal
+                + Tambah Modal
               </button>
             </form>
 
-            {/* Daftar Riwayat Modal */}
-            <div className="mt-5 border-t border-slate-100 pt-4">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                Riwayat Saldo Modal Masuk ({refills.length})
-              </h4>
-              <div className="mt-2 max-h-48 space-y-2 overflow-y-auto pr-1">
-                {refills.length === 0 ? (
-                  <p className="text-xs text-slate-400">
-                    Belum ada modal yang diinput.
-                  </p>
-                ) : (
-                  refills.map((r) => (
+            {/* Riwayat Modal Ringkas */}
+            {refills.length > 0 && (
+              <div className="mt-4 border-t border-slate-100 pt-3">
+                <h4 className="text-[11px] font-bold text-slate-500">
+                  Riwayat Refill ({refills.length})
+                </h4>
+                <div className="mt-2 max-h-36 space-y-1.5 overflow-y-auto pr-1">
+                  {refills.map((r) => (
                     <div
                       key={r.id}
-                      className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2 text-xs"
+                      className="flex items-center justify-between rounded-lg border border-slate-100 px-2.5 py-1.5 text-xs"
                     >
                       <div>
-                        <p className="font-bold text-slate-800">
+                        <strong className="text-slate-800">
                           {formatRupiah(r.nominal)}
-                        </p>
-                        <p className="text-[11px] text-slate-500">
-                          {r.tanggal} • {r.keterangan}
-                        </p>
+                        </strong>
+                        <span className="ml-1 text-[10px] text-slate-400">
+                          {r.tanggal}
+                        </span>
                       </div>
                       <button
                         onClick={() => handleDeleteRefill(r.id)}
-                        className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
-                        title="Hapus modal ini"
+                        className="rounded p-1 text-slate-400 hover:text-rose-600"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-3 w-3" />
                       </button>
                     </div>
-                  ))
-                )}
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       )}
 
       {/* ===================================================== */}
-      {/* MODAL 2: SETTING HARGA BBM & JATAH SEKALI ISI         */}
+      {/* MODAL 2: PENGATURAN                                  */}
       {/* ===================================================== */}
       {showSettingsModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <Settings className="h-5 w-5 text-slate-700" />
-                <h3 className="text-base font-bold text-slate-900">
-                  Pengaturan BBM, Jatah Modal & Rumus KM/L
-                </h3>
-              </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <h3 className="text-sm font-bold text-slate-900">Pengaturan</h3>
               <button
                 onClick={() => setShowSettingsModal(false)}
-                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                className="rounded p-1 text-slate-400 hover:text-slate-700"
               >
-                <X className="h-5 w-5" />
+                <X className="h-4 w-4" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveSettings} className="mt-4 space-y-4">
-              {/* 1. Jatah Sekali Ngisi */}
+            <form onSubmit={handleSaveSettings} className="mt-3 space-y-3.5">
+              {/* Jatah Sekali Isi */}
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-                  Jatah Ambil dari Modal per Sekali Ngisi (Rp)
+                <label className="block text-[11px] font-bold text-slate-700">
+                  Jatah Subsidi Modal / Sekali Isi
                 </label>
-                <p className="text-[11px] text-slate-500">
-                  Misal diatur Rp 40.000, maka setiap ngisi otomatis memotong
-                  Rp 40.000 dari modal dan sisanya dari uang harian.
-                </p>
                 <input
                   type="number"
                   value={editSubsidy}
                   onChange={(e) => setEditSubsidy(e.target.value)}
                   required
-                  className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-bold text-emerald-700"
+                  className="mt-1 w-full rounded-xl border border-slate-300 px-2.5 py-1.5 text-xs font-bold text-emerald-700"
                 />
               </div>
 
-              {/* 2. Daftar Harga BBM */}
+              {/* Harga BBM */}
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-                  Daftar Pilihan BBM & Harga per Liter
+                <label className="block text-[11px] font-bold text-slate-700">
+                  Harga BBM / Liter
                 </label>
-                <div className="mt-2 space-y-2">
+                <div className="mt-1.5 space-y-1.5">
                   {editFuelTypes.map((fuel, idx) => (
                     <div
                       key={fuel.id}
-                      className="flex items-center gap-2 rounded-xl border border-slate-200 p-2"
+                      className="flex items-center gap-1.5 rounded-lg border border-slate-200 p-1.5"
                     >
                       <input
                         type="text"
@@ -1557,10 +1226,10 @@ export default function CatatanMinyakPage() {
                           copy[idx] = { ...fuel, name: e.target.value };
                           setEditFuelTypes(copy);
                         }}
-                        className="w-1/2 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-bold"
+                        className="w-1/2 rounded border border-slate-200 px-1.5 py-0.5 text-xs font-semibold"
                       />
                       <div className="flex flex-1 items-center gap-1">
-                        <span className="text-xs text-slate-400">Rp</span>
+                        <span className="text-[10px] text-slate-400">Rp</span>
                         <input
                           type="number"
                           value={fuel.pricePerLiter}
@@ -1572,57 +1241,18 @@ export default function CatatanMinyakPage() {
                             };
                             setEditFuelTypes(copy);
                           }}
-                          className="w-full rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold"
+                          className="w-full rounded border border-slate-200 px-1.5 py-0.5 text-xs"
                         />
-                        <span className="text-xs text-slate-400">/L</span>
                       </div>
-                      {editFuelTypes.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setEditFuelTypes(
-                              editFuelTypes.filter((_, i) => i !== idx)
-                            )
-                          }
-                          className="rounded p-1 text-slate-400 hover:text-rose-600"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      )}
                     </div>
                   ))}
                 </div>
-
-                {/* Tambah BBM Baru */}
-                <div className="mt-2 flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={newFuelName}
-                    onChange={(e) => setNewFuelName(e.target.value)}
-                    placeholder="Nama BBM baru (misal: Dexlite)"
-                    className="w-1/2 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs"
-                  />
-                  <input
-                    type="number"
-                    value={newFuelPrice}
-                    onChange={(e) => setNewFuelPrice(e.target.value)}
-                    placeholder="Harga/L (misal: 14500)"
-                    className="flex-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleAddCustomFuelType}
-                    className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-800"
-                  >
-                    + Tambah
-                  </button>
-                </div>
               </div>
 
-              {/* 3. Metode Perhitungan KM/L */}
+              {/* Metode Hitung */}
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-                  Metode Hitung Rata-rata Konsumsi (km/L)
+                <label className="block text-[11px] font-bold text-slate-700">
+                  Rumus km/L
                 </label>
                 <select
                   value={editKmMethod}
@@ -1631,59 +1261,41 @@ export default function CatatanMinyakPage() {
                       e.target.value as "prev_liter" | "current_liter"
                     )
                   }
-                  className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-800"
+                  className="mt-1 w-full rounded-xl border border-slate-300 px-2 py-1.5 text-xs text-slate-800"
                 >
-                  <option value="prev_liter">
-                    Jarak Tempuh ÷ Liter Pengisian Sebelumnya (BBM yang dipakai
-                    jalan)
-                  </option>
-                  <option value="current_liter">
-                    Jarak Tempuh ÷ Liter Pengisian Saat Ini (Metode Full-to-Full)
-                  </option>
+                  <option value="prev_liter">Jarak ÷ Liter Isi Sebelumnya</option>
+                  <option value="current_liter">Jarak ÷ Liter Isi Sekarang</option>
                 </select>
-                <p className="mt-1 flex items-start gap-1 text-[11px] text-slate-500">
-                  <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-500" />
-                  <span>
-                    Contoh: Isi ke-1 Rp 65rb (6,5 L) di KM 200, lalu Isi ke-2 Rp
-                    75rb (7,5 L) di KM 392 (Jarak 192 km). Metode 1 = 192 ÷ 6,5
-                    = 29,54 km/L. Metode 2 = 192 ÷ 7,5 = 25,60 km/L.
-                  </span>
-                </p>
               </div>
 
-              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+              <div className="flex items-center justify-between border-t border-slate-100 pt-3">
                 <button
                   type="button"
                   onClick={async () => {
-                    if (
-                      !confirm(
-                        "Reset semua saldo modal dan riwayat pengisian BBM ke 0?"
-                      )
-                    )
+                    if (!confirm("Reset semua data modal dan riwayat ke 0?"))
                       return;
                     await resetAllData();
                     setShowSettingsModal(false);
                     await loadAllData();
                   }}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700 hover:bg-rose-100"
+                  className="text-[11px] font-bold text-rose-600 hover:underline"
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  Reset Semua Data ke Awal (0)
+                  Reset ke 0
                 </button>
 
-                <div className="flex gap-2">
+                <div className="flex gap-1.5">
                   <button
                     type="button"
                     onClick={() => setShowSettingsModal(false)}
-                    className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600"
+                    className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600"
                   >
                     Batal
                   </button>
                   <button
                     type="submit"
-                    className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow hover:bg-emerald-700"
+                    className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-emerald-700"
                   >
-                    Simpan Pengaturan
+                    Simpan
                   </button>
                 </div>
               </div>
@@ -1694,4 +1306,3 @@ export default function CatatanMinyakPage() {
     </div>
   );
 }
-
